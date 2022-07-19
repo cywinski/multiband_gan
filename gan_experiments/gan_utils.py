@@ -1,12 +1,11 @@
+import numpy as np
 import torch
-import torchvision
+import torch.autograd as autograd
 from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid1 import ImageGrid
-import numpy as np
-import wandb
-from torch.autograd import Variable
 from torch import Tensor
-import torch.autograd as autograd
+from torch.autograd import Variable
+
 
 def compute_gradient_penalty(D, real_samples, fake_samples, device):
     """Calculates the gradient penalty loss for WGAN GP"""
@@ -49,7 +48,7 @@ def generate_images_grid(generator, batch_size, task_id, device, epoch=None, noi
     for ax, im in zip(grid, fake):
         im = np.swapaxes(im, 0, 2)
         im = np.swapaxes(im, 0, 1)
-        ax.imshow(im.squeeze())
+        ax.imshow(im.squeeze(), cmap="gray")
 
     return fig
 

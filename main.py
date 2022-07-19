@@ -65,9 +65,14 @@ def run(args):
     fid_local_gan = OrderedDict()
 
     # Prepare GAN
-    local_generator = models_definition.Generator(latent_dim=args.latent_dim, img_shape=train_dataset[0][0].shape,
+    local_generator = models_definition.Generator(latent_dim=args.latent_dim,
+                                                  img_shape=train_dataset[0][0].shape,
                                                   device=device).to(device)
-    local_discriminator = models_definition.Discriminator(img_shape=train_dataset[0][0].shape, device=device).to(device)
+    local_discriminator = models_definition.Discriminator(img_shape=train_dataset[0][0].shape,
+                                                          device=device,
+                                                          is_wgan=True if args.gan_type == "wgan" else False
+                                                          ).to(device)
+
     local_generator.apply(gan_utils.weights_init_normal)
     local_discriminator.apply(gan_utils.weights_init_normal)
     # translate_noise = True
@@ -107,22 +112,29 @@ def run(args):
 
     curr_global_generator = None
     curr_global_discriminator = None
+    config = {
+            'local_dis_lr': args.local_dis_lr,
+            'local_gen_lr': args.local_gen_lr,
+            'global_dis_lr': args.global_dis_lr,
+            'global_gen_lr': args.global_gen_lr,
+            'batch_size': args.batch_size,
+            'latent_dim': args.latent_dim,
+            'dataset': args.dataset,
+            'num_local_epochs': args.num_local_epochs,
+            'num_global_epochs': args.num_global_epochs,
+            'local_scheduler_rate': args.local_scheduler_rate,
+            'gan_type': args.gan_type,
+            'n_critic_steps': args.n_critic_steps,
+            'lambda_gp': args.lambda_gp
+            }
+
+    print("Config:")
+    print(config)
 
     wandb.init(
             project="MultibandGAN",
             name=f"{args.experiment_name}",
-            config={
-                    'local_dis_lr': args.local_dis_lr,
-                    'local_gen_lr': args.local_gen_lr,
-                    'global_dis_lr': args.global_dis_lr,
-                    'global_gen_lr': args.global_gen_lr,
-                    'batch_size': args.batch_size,
-                    'latent_dim': args.latent_dim,
-                    'dataset': args.dataset,
-                    'num_local_epochs': args.num_local_epochs,
-                    'num_global_epochs': args.num_global_epochs,
-                    'local_scheduler_rate': args.local_scheduler_rate,
-                    })
+            config=config)
 
     # for task_id in range(len(task_names)):
     for task_id in {0}:
@@ -144,6 +156,9 @@ def run(args):
                     local_gen_lr=args.local_gen_lr,
                     num_gen_images=args.num_gen_images,
                     local_scheduler_rate=args.local_scheduler_rate,
+                    gan_type=args.gan_type,
+                    n_critic_steps=args.n_critic_steps,
+                    lambda_gp=args.lambda_gp
                     )
         else:
             print("Wrong training procedure")
@@ -252,14 +267,17 @@ def get_args(argv):
                         help="Number of epochs to train local GAN")
     parser.add_argument('--num_global_epochs', type=int, default=100,
                         help="Number of epochs to train global GAN")
-    parser.add_argument('--local_dis_lr', type=float, default=0.002)
-    parser.add_argument('--local_gen_lr', type=float, default=0.002)
-    parser.add_argument('--global_gen_lr', type=float, default=0.002)
-    parser.add_argument('--global_dis_lr', type=float, default=0.002)
+    parser.add_argument('--local_dis_lr', type=float, default=0.0002)
+    parser.add_argument('--local_gen_lr', type=float, default=0.0002)
+    parser.add_argument('--global_gen_lr', type=float, default=0.0002)
+    parser.add_argument('--global_dis_lr', type=float, default=0.0002)
     parser.add_argument('--num_gen_images', type=int, default=16,
                         help="Number of images to generate each epoch")
     parser.add_argument('--local_scheduler_rate', type=float, default=0.99)
     parser.add_argument('--global_scheduler_rate', type=float, default=0.99)
+    parser.add_argument('--gan_type', type=str, default="wgan", choices=["wgan", "dcgan"])
+    parser.add_argument('--n_critic_steps', type=int, default=5, help="Train the generator every n_critic steps")
+    parser.add_argument('--lambda_gp', type=int, default=10)
 
     args = parser.parse_args(argv)
 
