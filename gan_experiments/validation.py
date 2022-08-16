@@ -72,7 +72,7 @@ class Validator:
                 else:
                     task_ids = torch.zeros(len(y)) + task_id
 
-                example = curr_global_generator(z)
+                example = curr_global_generator(z, task_ids)
 
                 if not precalculated_statistics:
                     if self.dataset.lower() in ["fashionmnist", "doublemnist"]:

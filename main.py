@@ -65,9 +65,18 @@ def run(args):
     fid_local_gan = OrderedDict()
 
     # Prepare GAN
+    translator = models_definition.Translator(
+            n_dim_coding=args.gen_n_dim_coding,
+            p_coding=args.gen_p_coding,
+            latent_size=args.latent_dim,
+            device=device,
+            num_tasks=n_tasks
+            ).to(device)
     local_generator = models_definition.Generator(latent_dim=args.latent_dim,
                                                   img_shape=train_dataset[0][0].shape,
-                                                  device=device).to(device)
+                                                  device=device,
+                                                  translator=translator
+                                                  ).to(device)
     local_discriminator = models_definition.Discriminator(img_shape=train_dataset[0][0].shape,
                                                           device=device,
                                                           is_wgan=True if args.gan_type == "wgan" else False
@@ -111,11 +120,9 @@ def run(args):
         #     validator = CERN_Validator(dataloaders=val_loaders, stats_file_name=stats_file_name, device=device)
 
     curr_global_generator = None
-    curr_global_discriminator = None
     config = {
             'local_dis_lr': args.local_dis_lr,
             'local_gen_lr': args.local_gen_lr,
-            'global_dis_lr': args.global_dis_lr,
             'global_gen_lr': args.global_gen_lr,
             'batch_size': args.batch_size,
             'latent_dim': args.latent_dim,
@@ -137,12 +144,10 @@ def run(args):
             config=config)
 
     # for task_id in range(len(task_names)):
-    for task_id in {0}:
+    for task_id in {0, 1}:
         print("######### Task number {} #########".format(task_id))
 
         task_name = task_names[task_id]
-
-        print("Train local GAN model")
         train_dataset_loader = train_loaders[task_id]
 
         if args.training_procedure == "multiband":
@@ -151,26 +156,41 @@ def run(args):
                     local_discriminator=local_discriminator,
                     local_generator=local_generator,
                     task_loader=train_dataset_loader,
-                    n_epochs=args.num_global_epochs + args.num_local_epochs if task_id == 0 else args.num_local_epochs,
+                    n_local_epochs=args.num_local_epochs,
+                    n_global_epochs=args.num_global_epochs,
                     local_dis_lr=args.local_dis_lr,
                     local_gen_lr=args.local_gen_lr,
                     num_gen_images=args.num_gen_images,
                     local_scheduler_rate=args.local_scheduler_rate,
                     gan_type=args.gan_type,
                     n_critic_steps=args.n_critic_steps,
-                    lambda_gp=args.lambda_gp
+                    lambda_gp=args.lambda_gp,
+                    batch_size=args.batch_size,
+                    limit_previous_examples=args.limit_previous,
+                    curr_global_generator=curr_global_generator,
+                    global_gen_lr=args.global_gen_lr,
+                    num_epochs_noise_optim=args.num_epochs_noise_optim,
+                    optim_noise_lr=args.optim_noise_lr
                     )
         else:
             print("Wrong training procedure")
             return None
 
-        fig = gan_utils.generate_images_grid(curr_global_generator, args.num_gen_images, task_id, device,
-                                             experiment_name=args.experiment_name)
-        fig.savefig(f"results/{args.experiment_name}/generations_task_{task_id}")
-        wandb.log({
-                f"generations_{args.experiment_name}_{task_id}": fig
-                })
-        plt.close(fig)
+        for learned_task_id in range(0, task_id + 1):
+            generations, embeddings = curr_global_generator(
+                    torch.randn(args.num_gen_images, curr_global_generator.latent_dim).to(
+                            curr_global_generator.device),
+                    (torch.zeros([args.num_gen_images]) + learned_task_id).to(
+                            curr_global_generator.device),
+                    return_emb=True)
+            torch.save(embeddings, f"results/{args.experiment_name}/embeddings_task_{learned_task_id}")
+
+            # fig = gan_utils.generate_images_grid(curr_global_generator, device, torch.zeros([16]) + learned_task_id)
+            # fig.savefig(f"results/{args.experiment_name}/generations_task_{learned_task_id}")
+            wandb.log({
+                    f"generations_{args.experiment_name}_task_{learned_task_id}": wandb.Image(generations),
+                    })
+            # plt.close(fig)
 
         torch.save(curr_global_generator, f"results/{args.experiment_name}/model{task_id}_curr_generator")
         torch.save(curr_global_discriminator, f"results/{args.experiment_name}/model{task_id}_curr_discriminator")
@@ -267,10 +287,12 @@ def get_args(argv):
                         help="Number of epochs to train local GAN")
     parser.add_argument('--num_global_epochs', type=int, default=100,
                         help="Number of epochs to train global GAN")
+    parser.add_argument('--num_epochs_noise_optim', type=int, default=400,
+                        help="Number of epochs to optimize noise in global training")
     parser.add_argument('--local_dis_lr', type=float, default=0.0002)
     parser.add_argument('--local_gen_lr', type=float, default=0.0002)
     parser.add_argument('--global_gen_lr', type=float, default=0.0002)
-    parser.add_argument('--global_dis_lr', type=float, default=0.0002)
+    parser.add_argument('--optim_noise_lr', type=float, default=0.001)
     parser.add_argument('--num_gen_images', type=int, default=16,
                         help="Number of images to generate each epoch")
     parser.add_argument('--local_scheduler_rate', type=float, default=0.99)
@@ -278,6 +300,12 @@ def get_args(argv):
     parser.add_argument('--gan_type', type=str, default="wgan", choices=["wgan", "dcgan"])
     parser.add_argument('--n_critic_steps', type=int, default=5, help="Train the generator every n_critic steps")
     parser.add_argument('--lambda_gp', type=int, default=10)
+    parser.add_argument('--gen_p_coding', type=int, default=9,
+                        help="Prime number used to calculated codes in binary autoencoder")
+    parser.add_argument('--gen_n_dim_coding', type=int, default=4,
+                        help="Number of bits used to code task id in binary autoencoder")
+    parser.add_argument('--limit_previous', default=0.5, type=float,
+                        help="How much of previous data we want to generate each epoch")
 
     args = parser.parse_args(argv)
 

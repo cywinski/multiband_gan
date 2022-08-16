@@ -1,9 +1,10 @@
 import numpy as np
+import torch
 import torch.nn as nn
 
 
 class Generator(nn.Module):
-    def __init__(self, latent_dim, img_shape, device):
+    def __init__(self, latent_dim, img_shape, device, translator):
         super(Generator, self).__init__()
 
         self.init_size = img_shape[1] // 4
@@ -13,6 +14,8 @@ class Generator(nn.Module):
         self.latent_dim = latent_dim
         self.img_shape = img_shape
         self.device = device
+
+        self.translator = translator
 
         self.conv_blocks = nn.Sequential(
                 nn.BatchNorm2d(128),
@@ -28,10 +31,17 @@ class Generator(nn.Module):
                 nn.Tanh(),
                 )
 
-    def forward(self, z):
-        out = self.l1(z)
+    def forward(self, z, task_id, return_emb=False):
+        # Noise as input to translator, embedding as output
+        translator_emb = self.translator(z, task_id)
+
+        out = self.l1(translator_emb)
         out = out.view(out.shape[0], 128, self.init_size, self.init_size)
         img = self.conv_blocks(out)
+
+        if return_emb:
+            return img, translator_emb
+
         return img
 
 
@@ -85,23 +95,24 @@ class Discriminator(nn.Module):
             return block
 
         self.model = nn.Sequential(
-                *discriminator_block(img_shape[0], 64, bn=False),  # 14x14x64
-                *discriminator_block(64, 128),  # 7x7x128
-                *discriminator_block(128, 256),  # 3x3x256
-                # *discriminator_block(256, 512),  # 2x2x512
+                *discriminator_block(img_shape[0], 64, bn=False),
+                *discriminator_block(64, 128),
+                *discriminator_block(128, 256),
+                # *discriminator_block(256, 512),
                 )
 
         # The height and width of downsampled image
         ds_size = int(np.ceil(img_shape[1] / 2 ** 3))
         if not self.is_wgan:
-            self.adv_layer = nn.Sequential(nn.Linear(512 * ds_size ** 2, 1), nn.Sigmoid())
+            self.adv_layer = nn.Sequential(nn.Linear((256 * ds_size ** 2) + 1, 1), nn.Sigmoid())
         else:
-            self.adv_layer = nn.Linear(256 * ds_size ** 2, 1)
+            self.adv_layer = nn.Linear((256 * ds_size ** 2) + 1, 1)
 
-    def forward(self, img):
+    def forward(self, img, task_id):
         out = self.model(img)
         out = out.view(out.shape[0], -1)
-        validity = self.adv_layer(out)
+        x = torch.cat([out, torch.unsqueeze(task_id, 1).to(self.device)], dim=1)
+        validity = self.adv_layer(x)
 
         return validity
 
@@ -124,3 +135,25 @@ class Discriminator(nn.Module):
 #         validity = self.model(img_flat)
 #
 #         return validity
+
+class Translator(nn.Module):
+    def __init__(self, n_dim_coding, p_coding, latent_size, device, num_tasks):
+        super().__init__()
+        self.n_dim_coding = n_dim_coding
+        self.p_coding = p_coding
+        self.device = device
+        self.latent_size = latent_size
+        self.num_tasks = num_tasks
+
+        self.fc = nn.Sequential(
+                nn.Linear(1 + latent_size, latent_size * 4),
+                nn.LeakyReLU(),
+                nn.Linear(latent_size * 4, latent_size),
+                )
+
+    def forward(self, x, task_id):
+        # task_id = F.one_hot(task_id.long(), num_classes=self.num_tasks).to(self.device)
+        # x = torch.cat([x, task_id], dim=1)
+        x = torch.cat([x, torch.unsqueeze(task_id, 1).to(self.device)], dim=1)
+        out = self.fc(x)
+        return out
