@@ -4,12 +4,13 @@ import torch.nn as nn
 
 
 class Generator(nn.Module):
-    def __init__(self, latent_dim, img_shape, device, translator):
+    def __init__(self, latent_dim, img_shape, device, translator, num_features):
         super(Generator, self).__init__()
 
         self.init_size = img_shape[1] // 4
+        self.num_features = num_features
         self.l1 = nn.Sequential(
-                nn.Linear(latent_dim, 128 * self.init_size ** 2),
+                nn.Linear(latent_dim, (num_features * 4) * self.init_size ** 2),
                 )
         self.latent_dim = latent_dim
         self.img_shape = img_shape
@@ -17,26 +18,29 @@ class Generator(nn.Module):
 
         self.translator = translator
 
+        def generator_block(in_filters, out_filters):
+            block = [
+                    nn.Upsample(scale_factor=2),
+                    nn.Conv2d(in_filters, out_filters, kernel_size=3, stride=1, padding=1),
+                    nn.BatchNorm2d(out_filters),
+                    nn.ReLU(inplace=True),
+                    ]
+            return block
+
         self.conv_blocks = nn.Sequential(
-                nn.BatchNorm2d(128),
-                nn.Upsample(scale_factor=2),
-                nn.Conv2d(128, 128, 3, stride=1, padding=1),
-                nn.BatchNorm2d(128, 0.8),
-                nn.ReLU(inplace=True),
-                nn.Upsample(scale_factor=2),
-                nn.Conv2d(128, 64, 3, stride=1, padding=1),
-                nn.BatchNorm2d(64, 0.8),
-                nn.ReLU(inplace=True),
-                nn.Conv2d(64, img_shape[0], 3, stride=1, padding=1),
+                nn.BatchNorm2d(num_features * 4),
+                *generator_block(num_features * 4, num_features * 4),
+                *generator_block(num_features * 4, num_features * 2),
+                nn.Conv2d(num_features * 2, img_shape[0], kernel_size=3, stride=1, padding=1),
                 nn.Tanh(),
                 )
 
     def forward(self, z, task_id, return_emb=False):
         # Noise as input to translator, embedding as output
-        translator_emb = self.translator(z, task_id)
+        translator_emb = self.translator(z, task_id)  # -> [batch_size, latent_dim]
 
         out = self.l1(translator_emb)
-        out = out.view(out.shape[0], 128, self.init_size, self.init_size)
+        out = out.view(out.shape[0], (self.num_features * 4), self.init_size, self.init_size)
         img = self.conv_blocks(out)
 
         if return_emb:
@@ -75,7 +79,7 @@ class Generator(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, img_shape, device, is_wgan=False):
+    def __init__(self, img_shape, device, num_features, is_wgan=False):
         super(Discriminator, self).__init__()
         self.img_shape = img_shape
         self.device = device
@@ -91,22 +95,23 @@ class Discriminator(nn.Module):
             else:
                 block = [nn.Conv2d(in_filters, out_filters, kernel_size=3, stride=2, padding=1),
                          nn.InstanceNorm2d(out_filters, affine=True),
-                         nn.LeakyReLU(0.2, inplace=True)]
+                         nn.LeakyReLU(0.2)]
             return block
 
         self.model = nn.Sequential(
-                *discriminator_block(img_shape[0], 64, bn=False),
-                *discriminator_block(64, 128),
-                *discriminator_block(128, 256),
-                # *discriminator_block(256, 512),
+                nn.Conv2d(img_shape[0], num_features, kernel_size=3, stride=2, padding=1),
+                nn.LeakyReLU(0.2),
+                *discriminator_block(num_features, num_features * 2),
+                *discriminator_block(num_features * 2, num_features * 4),
+                *discriminator_block(num_features * 4, num_features * 8),  # 2x2
                 )
 
         # The height and width of downsampled image
-        ds_size = int(np.ceil(img_shape[1] / 2 ** 3))
+        ds_size = int(np.ceil(img_shape[1] / 2 ** 4))
         if not self.is_wgan:
-            self.adv_layer = nn.Sequential(nn.Linear((256 * ds_size ** 2) + 1, 1), nn.Sigmoid())
+            self.adv_layer = nn.Sequential(nn.Linear(((num_features * 8) * ds_size ** 2) + 1, 1), nn.Sigmoid())
         else:
-            self.adv_layer = nn.Linear((256 * ds_size ** 2) + 1, 1)
+            self.adv_layer = nn.Linear(((num_features * 8) * ds_size ** 2) + 1, 1)
 
     def forward(self, img, task_id):
         out = self.model(img)
@@ -147,7 +152,7 @@ class Translator(nn.Module):
 
         self.fc = nn.Sequential(
                 nn.Linear(1 + latent_size, latent_size * 4),
-                nn.LeakyReLU(),
+                nn.LeakyReLU(0.2),
                 nn.Linear(latent_size * 4, latent_size),
                 )
 

@@ -1,12 +1,13 @@
 import os
 
-import torchvision
-from torchvision import transforms
-from .wrapper import CacheClassLabel
 import numpy as np
 import pandas as pd
 import torch
-from torch.utils.data import Dataset, DataLoader, Subset, TensorDataset, ConcatDataset
+import torchvision
+from torch.utils.data import Dataset, DataLoader, TensorDataset, ConcatDataset
+from torchvision import transforms
+
+from .wrapper import CacheClassLabel
 
 
 class FastCelebA(Dataset):
@@ -47,7 +48,7 @@ def CelebA(root, skip_normalization=False, train_aug=False, image_size=64, targe
 
 
 def MNIST(dataroot, skip_normalization=False, train_aug=False):
-    normalize = transforms.Normalize(mean=(0.1307,), std=(0.3081,))  # for 28x28
+    normalize = transforms.Normalize(mean=(0.5,), std=(0.5,))  # for 28x28
     # normalize = transforms.Normalize(mean=(0.1000,), std=(0.2752,))  # for 32x32
 
     if skip_normalization:

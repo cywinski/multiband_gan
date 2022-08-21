@@ -75,11 +75,13 @@ def run(args):
     local_generator = models_definition.Generator(latent_dim=args.latent_dim,
                                                   img_shape=train_dataset[0][0].shape,
                                                   device=device,
-                                                  translator=translator
+                                                  translator=translator,
+                                                  num_features=args.g_n_features
                                                   ).to(device)
     local_discriminator = models_definition.Discriminator(img_shape=train_dataset[0][0].shape,
                                                           device=device,
-                                                          is_wgan=True if args.gan_type == "wgan" else False
+                                                          is_wgan=True if args.gan_type == "wgan" else False,
+                                                          num_features=args.d_n_features
                                                           ).to(device)
 
     local_generator.apply(gan_utils.weights_init_normal)
@@ -306,6 +308,10 @@ def get_args(argv):
                         help="Number of bits used to code task id in binary autoencoder")
     parser.add_argument('--limit_previous', default=0.5, type=float,
                         help="How much of previous data we want to generate each epoch")
+    parser.add_argument('--d_n_features', type=int, default=64,
+                        help="Number of features in discriminator")
+    parser.add_argument('--g_n_features', type=int, default=64,
+                        help="Number of features in generator")
 
     args = parser.parse_args(argv)
 

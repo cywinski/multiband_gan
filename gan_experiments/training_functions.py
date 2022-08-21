@@ -123,8 +123,8 @@ def train_local_wgan_gp(
         num_gen_images, task_id, lambda_gp, n_critic_steps
         ):
     # Optimizers
-    optimizer_g = torch.optim.Adam(local_generator.parameters(), lr=local_gen_lr, betas=(0.5, 0.9))
-    optimizer_d = torch.optim.Adam(local_discriminator.parameters(), lr=local_dis_lr, betas=(0.5, 0.9))
+    optimizer_g = torch.optim.Adam(local_generator.parameters(), lr=local_gen_lr, betas=(0.0, 0.9))
+    optimizer_d = torch.optim.Adam(local_discriminator.parameters(), lr=local_dis_lr, betas=(0.0, 0.9))
     scheduler_g = torch.optim.lr_scheduler.ExponentialLR(optimizer_g, gamma=0.9)
     scheduler_d = torch.optim.lr_scheduler.ExponentialLR(optimizer_d, gamma=0.9)
 
@@ -135,8 +135,7 @@ def train_local_wgan_gp(
     for epoch in range(n_epochs):
         for i, batch in enumerate(task_loader):
             # Configure input
-            imgs = batch[0].to(local_generator.device)
-            real_imgs = Variable(imgs.type(Tensor)).to(local_generator.device)
+            real_imgs = Variable(batch[0].type(Tensor)).to(local_generator.device)
             task_ids = (torch.zeros([len(batch[0])]) + task_id).to(local_generator.device)
 
             # ---------------------
@@ -146,11 +145,14 @@ def train_local_wgan_gp(
             optimizer_d.zero_grad()
 
             # Sample noise as generator input
-            z = Variable(Tensor(np.random.normal(0, 1, (imgs.shape[0], local_generator.latent_dim)))).to(
+            z = Variable(Tensor(np.random.normal(0, 1, (real_imgs.shape[0], local_generator.latent_dim)))).to(
                     local_generator.device)
 
             # Generate a batch of images
             fake_imgs = local_generator(z, task_ids)
+
+            # Add detach() so the backward() will not change the weights of generator
+            fake_imgs.detach()
 
             # Train on real images
             d_output_real = local_discriminator(real_imgs, task_ids)
@@ -161,7 +163,8 @@ def train_local_wgan_gp(
             d_loss_fake = torch.mean(d_output_fake)
 
             # Gradient penalty
-            gradient_penalty = gan_utils.compute_gradient_penalty(local_discriminator, real_imgs.data,
+            gradient_penalty = gan_utils.compute_gradient_penalty(local_discriminator,
+                                                                  real_imgs.data,
                                                                   fake_imgs.data,
                                                                   local_generator.device,
                                                                   task_ids)
@@ -251,7 +254,7 @@ def train_global_generator(
 
     criterion = torch.nn.MSELoss()
 
-    optimizer_g = torch.optim.Adam(global_generator.parameters(), lr=global_gen_lr, betas=(0.5, 0.9))
+    optimizer_g = torch.optim.Adam(global_generator.parameters(), lr=global_gen_lr)
     scheduler_g = torch.optim.lr_scheduler.ExponentialLR(optimizer_g, gamma=0.9)
 
     # Create batch of latent vectors that we will use to visualize
@@ -299,13 +302,12 @@ def train_global_generator(
             g_loss.backward()
             optimizer_g.step()
 
-            if i % 40 == 0:
+            if i % 1 == 0:
                 print(
                         f"[Global G] [Epoch {epoch + 1}/{n_epochs}] [Batch {i + 1}/{len(task_loader)}] [G loss: {g_loss.item():.3f}]"
                         )
 
             wandb.log({
-                    # f"prev_examples": wandb.Image(prev_examples),
                     f"global_g_loss_task_{task_id}": np.round(g_loss.item(), 3)
                     })
 
