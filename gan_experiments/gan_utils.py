@@ -71,9 +71,9 @@ def generate_previous_data(n_prev_tasks, n_prev_examples, curr_global_generator)
         # Tensor of tasks ids to generate
         task_ids = torch.from_numpy(np.concatenate(task_ids)).float().to(curr_global_generator.device)
         random_noise = torch.randn(len(task_ids), curr_global_generator.latent_dim).to(curr_global_generator.device)
-        generations, embeddings = curr_global_generator(random_noise, task_ids, return_emb=True)
+        generations = curr_global_generator(random_noise, task_ids)
 
-        return generations, embeddings, task_ids
+        return generations, random_noise, task_ids
 
 
 def optimize_noise(images, generator, n_iterations, task_id, lr, log=True):
@@ -94,29 +94,10 @@ def optimize_noise(images, generator, n_iterations, task_id, lr, log=True):
         loss.backward()
         optimizer.step()
         if i % 100 == 0 and log:
-            print(f"[Noise] [{i}/{n_iterations}] Loss: {loss.item():.3f}")
+            print(f"[Noise optimization] [Epoch {i}/{n_iterations}] [Loss: {loss.item():.3f}]")
+
+        # wandb.log({
+        #         f"loss_optimization_task_{task_id}": np.round(loss.item(), 3),
+        #         })
 
     return noise
-
-
-class BitUnpacker:
-    results_map = {}
-
-    @classmethod
-    def unpackbits(cls, y, num_bits):
-        with torch.no_grad():
-            x = y + 1
-            if num_bits == 0:
-                return torch.Tensor([])
-
-            if num_bits in cls.results_map:
-                mask = cls.results_map[num_bits]
-            else:
-                print("Mask for num_bits={} does not exist, calculating one.".format(num_bits))
-
-                mask = 2 ** (num_bits - 1 - torch.arange(num_bits).view([1, num_bits])).long()
-                cls.results_map[num_bits] = mask
-
-            x = x.view(-1, 1).long()
-
-            return (x & mask).bool().float() * 2 - 1

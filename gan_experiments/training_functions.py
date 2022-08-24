@@ -268,46 +268,49 @@ def train_global_generator(
         for i, batch in enumerate(task_loader):
 
             # Generate data -> (translator_embedding, generation) pairs for each previous task
-            prev_examples, prev_embeddings, prev_task_ids = gan_utils.generate_previous_data(
+            prev_examples, prev_noise, prev_task_ids = gan_utils.generate_previous_data(
                     n_prev_tasks=task_id,
                     n_prev_examples=n_prev_examples,
                     curr_global_generator=curr_global_generator
                     )
             # Real images and optimized noise of current task
             curr_examples = batch[0]
-            curr_embeddings = gan_utils.optimize_noise(curr_examples,
-                                                       curr_local_generator,
-                                                       num_epochs_noise_optim,
-                                                       task_id,
-                                                       lr=optim_noise_lr,
-                                                       log=False)
+            curr_noise = gan_utils.optimize_noise(curr_examples,
+                                                  curr_local_generator,
+                                                  num_epochs_noise_optim,
+                                                  task_id,
+                                                  lr=optim_noise_lr,
+                                                  )
+            ## TODO: Optimize noise only in first epoch
 
             curr_task_ids = torch.zeros([len(curr_examples)]) + task_id
 
             examples_concat = torch.cat([prev_examples, curr_examples.to(global_generator.device)])
-            embeddings_concat = torch.cat([prev_embeddings, curr_embeddings])
+            noise_concat = torch.cat([prev_noise, curr_noise])
             task_ids_concat = torch.cat([prev_task_ids, curr_task_ids.to(global_generator.device)])
 
             # Randomly shuffle examples
             shuffle = torch.randperm(len(task_ids_concat))
             examples_concat = examples_concat[shuffle]
-            embeddings_concat = embeddings_concat[shuffle]
+            noise_concat = noise_concat[shuffle]
             task_ids_concat = task_ids_concat[shuffle]
 
             optimizer_g.zero_grad()
 
-            global_generations = global_generator(embeddings_concat, task_ids_concat)
+            global_generations = global_generator(noise_concat, task_ids_concat)
             g_loss = criterion(global_generations, examples_concat)
 
             g_loss.backward()
             optimizer_g.step()
 
-            if i % 1 == 0:
+            if i % 20 == 0 or not epoch:
                 print(
                         f"[Global G] [Epoch {epoch + 1}/{n_epochs}] [Batch {i + 1}/{len(task_loader)}] [G loss: {g_loss.item():.3f}]"
                         )
 
             wandb.log({
+                    f"prev_examples_task_{task_id}": wandb.Image(prev_examples),
+                    f"global_generations_task_{task_id}": wandb.Image(global_generations),
                     f"global_g_loss_task_{task_id}": np.round(g_loss.item(), 3)
                     })
 

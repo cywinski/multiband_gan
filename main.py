@@ -145,8 +145,7 @@ def run(args):
             name=f"{args.experiment_name}",
             config=config)
 
-    # for task_id in range(len(task_names)):
-    for task_id in {0, 1}:
+    for task_id in range(len(task_names)):
         print("######### Task number {} #########".format(task_id))
 
         task_name = task_names[task_id]
