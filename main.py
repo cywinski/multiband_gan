@@ -95,9 +95,21 @@ def run(args):
     train_loaders = []
     val_loaders = []
     for task_name in range(n_tasks):
-        train_dataset_loader = data.DataLoader(dataset=train_dataset_splits[task_name],
-                                               batch_size=args.batch_size, shuffle=True,
-                                               drop_last=False)
+        # Manually shuffle train dataset to disable shuffling by DataLoader.
+        # This way we are getting the same order of batches each epoch, thus we are
+        # able to optimize noise during global training only in first epoch.
+        train_data_shuffle = torch.randperm(
+                len(train_dataset_splits[task_name].dataset)
+                )
+        train_dataset_splits[task_name].dataset = data.Subset(
+                dataset=train_dataset_splits[task_name].dataset, indices=train_data_shuffle
+                )
+        train_dataset_loader = data.DataLoader(
+                dataset=train_dataset_splits[task_name],
+                batch_size=args.batch_size,
+                shuffle=False,
+                drop_last=False,
+                )
 
         train_loaders.append(train_dataset_loader)
         val_data = val_dataset_splits[task_name] if args.score_on_val else train_dataset_splits[task_name]

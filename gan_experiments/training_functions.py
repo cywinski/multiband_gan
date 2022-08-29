@@ -267,7 +267,7 @@ def train_global_generator(
     for epoch in range(n_epochs):
         for i, batch in enumerate(task_loader):
 
-            # Generate data -> (translator_embedding, generation) pairs for each previous task
+            # Generate data -> (noise, generation) pairs for each previous task
             prev_examples, prev_noise, prev_task_ids = gan_utils.generate_previous_data(
                     n_prev_tasks=task_id,
                     n_prev_examples=n_prev_examples,
@@ -275,13 +275,17 @@ def train_global_generator(
                     )
             # Real images and optimized noise of current task
             curr_examples = batch[0]
-            curr_noise = gan_utils.optimize_noise(curr_examples,
-                                                  curr_local_generator,
-                                                  num_epochs_noise_optim,
-                                                  task_id,
-                                                  lr=optim_noise_lr,
-                                                  )
-            ## TODO: Optimize noise only in first epoch
+            if not epoch:
+                curr_noise = gan_utils.optimize_noise(
+                    curr_examples,
+                    curr_local_generator,
+                    num_epochs_noise_optim,
+                    task_id,
+                    lr=optim_noise_lr,
+                )
+                curr_noise_all.append(curr_noise.to("cpu"))
+            else:
+                curr_noise = curr_noise_all[i].to(global_generator.device)
 
             curr_task_ids = torch.zeros([len(curr_examples)]) + task_id
 
