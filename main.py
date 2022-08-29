@@ -157,25 +157,6 @@ def run(args):
         #     validator = CERN_Validator(dataloaders=val_loaders, stats_file_name=stats_file_name, device=device)
 
     curr_global_generator = None
-    config = {
-        "local_dis_lr": args.local_dis_lr,
-        "local_gen_lr": args.local_gen_lr,
-        "global_gen_lr": args.global_gen_lr,
-        "batch_size": args.batch_size,
-        "latent_dim": args.latent_dim,
-        "dataset": args.dataset,
-        "num_local_epochs": args.num_local_epochs,
-        "num_global_epochs": args.num_global_epochs,
-        "local_scheduler_rate": args.local_scheduler_rate,
-        "gan_type": args.gan_type,
-        "n_critic_steps": args.n_critic_steps,
-        "lambda_gp": args.lambda_gp,
-    }
-
-    print("Config:")
-    print(config)
-
-    wandb.init(project="MultibandGAN", name=f"{args.experiment_name}", config=config)
 
     for task_id in range(len(task_names)):
         print("######### Task number {} #########".format(task_id))
@@ -507,6 +488,8 @@ def get_args(argv):
 
 if __name__ == "__main__":
     args = get_args(sys.argv[1:])
+
+    wandb.init(project="MultibandGAN", name=f"{args.experiment_name}", config=vars(args))
 
     torch.cuda.set_device(args.gpuid[0])
     device = torch.device("cuda")
