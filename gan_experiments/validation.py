@@ -8,7 +8,15 @@ from gan_experiments.prd import compute_prd_from_embedding, prd_to_max_f_beta_pa
 
 
 class Validator:
-    def __init__(self, n_classes, device, dataset, stats_file_name, dataloaders, score_model_device=None):
+    def __init__(
+        self,
+        n_classes,
+        device,
+        dataset,
+        stats_file_name,
+        dataloaders,
+        score_model_device=None,
+    ):
         self.n_classes = n_classes
         self.device = device
         self.dataset = dataset
@@ -30,8 +38,15 @@ class Validator:
             net.eval()
             self.dims = 128 if dataset in ["Omniglot", "DoubleMNIST"] else 84  # 128
             self.score_model_func = net.part_forward
-        elif dataset.lower() in ["celeba", "doublemnist", "fashionmnist", "flowers", "cern"]:
+        elif dataset.lower() in [
+            "celeba",
+            "doublemnist",
+            "fashionmnist",
+            "flowers",
+            "cern",
+        ]:
             from gan_experiments.evaluation_models.inception import InceptionV3
+
             self.dims = 2048
             block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[self.dims]
             model = InceptionV3([block_idx])
@@ -52,11 +67,16 @@ class Validator:
             precalculated_statistics = False
             os.makedirs(os.path.join("results", "orig_stats"), exist_ok=True)
             # os.makedirs(f"results/orig_stats/", exist_ok=True)
-            stats_file_path = os.path.join("results", "orig_stats",
-                                           f"{self.dataset}_{self.stats_file_name}_{task_id}.npy")
+            stats_file_path = os.path.join(
+                "results",
+                "orig_stats",
+                f"{self.dataset}_{self.stats_file_name}_{task_id}.npy",
+            )
             # stats_file_path = f"results/orig_stats/{self.dataset}_{self.stats_file_name}_{task_id}.npy"
             if os.path.exists(stats_file_path):
-                print(f"Loading cached original data statistics from: {self.stats_file_name}")
+                print(
+                    f"Loading cached original data statistics from: {self.stats_file_name}"
+                )
                 distribution_orig = np.load(stats_file_path)
                 precalculated_statistics = True
 
@@ -64,7 +84,9 @@ class Validator:
             for idx, batch in enumerate(test_loader):
                 x = batch[0].to(self.device)
                 y = batch[1]
-                z = torch.randn([len(y), curr_global_generator.latent_dim]).to(self.device)
+                z = torch.randn([len(y), curr_global_generator.latent_dim]).to(
+                    self.device
+                )
                 y = y.sort()[0]
 
                 if starting_point is not None:
@@ -77,23 +99,42 @@ class Validator:
                 if not precalculated_statistics:
                     if self.dataset.lower() in ["fashionmnist", "doublemnist"]:
                         x = x.repeat([1, 3, 1, 1])
-                    distribution_orig.append(self.score_model_func(x).cpu().detach().numpy())
+                    distribution_orig.append(
+                        self.score_model_func(x).cpu().detach().numpy()
+                    )
                 if self.dataset.lower() in ["fashionmnist", "doublemnist"]:
                     example = example.repeat([1, 3, 1, 1])
                 distribution_gen.append(self.score_model_func(example))
 
-            distribution_gen = torch.cat(distribution_gen).cpu().detach().numpy().reshape(-1, self.dims)
+            distribution_gen = (
+                torch.cat(distribution_gen)
+                .cpu()
+                .detach()
+                .numpy()
+                .reshape(-1, self.dims)
+            )
             # distribution_gen = np.array(np.concatenate(distribution_gen)).reshape(-1, self.dims)
             if not precalculated_statistics:
-                distribution_orig = np.array(np.concatenate(distribution_orig)).reshape(-1, self.dims)
+                distribution_orig = np.array(np.concatenate(distribution_orig)).reshape(
+                    -1, self.dims
+                )
                 np.save(stats_file_path, distribution_orig)
 
             precision, recall = compute_prd_from_embedding(
-                    eval_data=distribution_orig[np.random.choice(len(distribution_orig), len(distribution_gen), False)],
-                    ref_data=distribution_gen)
+                eval_data=distribution_orig[
+                    np.random.choice(
+                        len(distribution_orig), len(distribution_gen), False
+                    )
+                ],
+                ref_data=distribution_gen,
+            )
             precision, recall = prd_to_max_f_beta_pair(precision, recall)
             print(f"Precision:{precision},recall: {recall}")
-            return calculate_frechet_distance(distribution_gen, distribution_orig), precision, recall
+            return (
+                calculate_frechet_distance(distribution_gen, distribution_orig),
+                precision,
+                recall,
+            )
 
     # def compute_results_from_examples(self, args, generations, task_id, join_tasks=False):
     #     distribution_orig = []
@@ -160,6 +201,7 @@ class Validator:
     #             distribution_gen[np.random.choice(len(distribution_gen), len(distribution_orig), True)],
     #             # TODO go back to FALSE
     #             distribution_orig), precision, recall
+
 
 # class CERN_Validator:
 #     def __init__(self, dataloaders, stats_file_name, device):
