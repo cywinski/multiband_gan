@@ -159,6 +159,7 @@ def train_local_wgan_gp(
     task_id,
     lambda_gp,
     n_critic_steps,
+    local_scheduler_rate,
 ):
     # Optimizers
     optimizer_g = torch.optim.Adam(
@@ -167,8 +168,12 @@ def train_local_wgan_gp(
     optimizer_d = torch.optim.Adam(
         local_discriminator.parameters(), lr=local_dis_lr, betas=(0.0, 0.9)
     )
-    scheduler_g = torch.optim.lr_scheduler.ExponentialLR(optimizer_g, gamma=0.9)
-    scheduler_d = torch.optim.lr_scheduler.ExponentialLR(optimizer_d, gamma=0.9)
+    scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
+        optimizer_g, gamma=local_scheduler_rate
+    )
+    scheduler_d = torch.optim.lr_scheduler.ExponentialLR(
+        optimizer_d, gamma=local_scheduler_rate
+    )
 
     # Create batch of latent vectors that we will use to visualize
     # the progression of the generator
@@ -177,6 +182,7 @@ def train_local_wgan_gp(
     )
 
     for epoch in range(n_epochs):
+        local_generator.train()
         for i, batch in enumerate(task_loader):
             # Configure input
             real_imgs = Variable(batch[0].type(Tensor)).to(local_generator.device)
@@ -277,6 +283,7 @@ def train_local_wgan_gp(
             )
 
         if epoch % 1 == 0:
+            local_generator.eval()
             generations = local_generator(
                 fixed_noise,
                 (torch.zeros([num_gen_images]) + task_id).to(local_generator.device),
@@ -317,6 +324,7 @@ def train_local(
             task_id,
             lambda_gp,
             n_critic_steps,
+            local_scheduler_rate,
         )
     else:
         train_local_dcgan(
@@ -344,18 +352,20 @@ def train_global_generator(
     num_epochs_noise_optim,
     num_gen_images,
     optim_noise_lr,
+    global_scheduler_rate,
 ):
     global_generator = copy.deepcopy(curr_global_generator)
     global_generator.to(curr_global_generator.device)
 
     curr_global_generator.eval()
     curr_global_generator.translator.eval()
-    global_generator.train()
 
     criterion = torch.nn.MSELoss()
 
     optimizer_g = torch.optim.Adam(global_generator.parameters(), lr=global_gen_lr)
-    scheduler_g = torch.optim.lr_scheduler.ExponentialLR(optimizer_g, gamma=0.9)
+    scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
+        optimizer_g, gamma=global_scheduler_rate
+    )
 
     # Create batch of latent vectors that we will use to visualize
     # the progression of the generator
@@ -369,6 +379,7 @@ def train_global_generator(
     curr_noise_all = []
 
     for epoch in range(n_epochs):
+        global_generator.train()
         for i, batch in enumerate(task_loader):
 
             # Generate data -> (noise, generation) pairs for each previous task
@@ -433,6 +444,7 @@ def train_global_generator(
         scheduler_g.step()
 
         if epoch % 1 == 0:
+            global_generator.eval()
             for learned_task_id in range(0, task_id + 1):
                 generations = global_generator(
                     fixed_noise,

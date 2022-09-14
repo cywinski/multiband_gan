@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.autograd as autograd
+import wandb
 from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid1 import ImageGrid
 from torch import Tensor
@@ -69,6 +70,7 @@ def generate_images_grid(generator, device, task_ids, noise=None):
 
 
 def generate_previous_data(n_prev_tasks, n_prev_examples, curr_global_generator):
+    curr_global_generator.eval()
     with torch.no_grad():
         # Generate equally distributed examples from previous tasks
         # było trochę inaczej :)
@@ -78,7 +80,6 @@ def generate_previous_data(n_prev_tasks, n_prev_examples, curr_global_generator)
             if tasks_dist[task_id]:
                 task_ids.append([task_id] * tasks_dist[task_id])
 
-        # print(f"Generated data for previous tasks: {Counter(np.concatenate(task_ids))}")
         # Tensor of tasks ids to generate
         task_ids = (
             torch.from_numpy(np.concatenate(task_ids))
@@ -93,7 +94,7 @@ def generate_previous_data(n_prev_tasks, n_prev_examples, curr_global_generator)
         return generations, random_noise, task_ids
 
 
-def optimize_noise(images, generator, n_iterations, task_id, lr, log=True):
+def optimize_noise(images, generator, n_iterations, task_id, lr):
     generator.eval()
 
     images = images.to(generator.device)
@@ -110,13 +111,17 @@ def optimize_noise(images, generator, n_iterations, task_id, lr, log=True):
         loss = criterion(generations, images)
         loss.backward()
         optimizer.step()
-        if i % 100 == 0 and log:
+        if i % 100 == 0:
             print(
                 f"[Noise optimization] [Epoch {i}/{n_iterations}] [Loss: {loss.item():.3f}]"
             )
 
-        # wandb.log({
-        #         f"loss_optimization_task_{task_id}": np.round(loss.item(), 3),
-        #         })
+        # Log only first epoch for better readability
+        if not i:
+            wandb.log(
+                {
+                    f"loss_optimization_task_{task_id}": np.round(loss.item(), 3),
+                }
+            )
 
     return noise
