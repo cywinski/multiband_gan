@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class Generator(nn.Module):
@@ -158,23 +159,21 @@ class Discriminator(nn.Module):
 
 
 class Translator(nn.Module):
-    def __init__(self, n_dim_coding, p_coding, latent_size, device, num_tasks):
+    def __init__(self, latent_size, device, num_tasks):
         super().__init__()
-        self.n_dim_coding = n_dim_coding
-        self.p_coding = p_coding
         self.device = device
         self.latent_size = latent_size
         self.num_tasks = num_tasks
 
         self.fc = nn.Sequential(
-            nn.Linear(1 + latent_size, latent_size * 4),
+            nn.Linear(self.num_tasks + latent_size, latent_size * 4),
             nn.LeakyReLU(0.2),
             nn.Linear(latent_size * 4, latent_size),
         )
 
     def forward(self, x, task_id):
-        # task_id = F.one_hot(task_id.long(), num_classes=self.num_tasks).to(self.device)
-        # x = torch.cat([x, task_id], dim=1)
-        x = torch.cat([x, torch.unsqueeze(task_id, 1).to(self.device)], dim=1)
+        # TODO: Try with torch.nn.Embedding
+        task_id = F.one_hot(task_id.long(), num_classes=self.num_tasks).to(self.device)
+        x = torch.cat([x, task_id], dim=1)
         out = self.fc(x)
         return out

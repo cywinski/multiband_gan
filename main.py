@@ -69,8 +69,6 @@ def run(args):
 
     # Prepare GAN
     translator = models_definition.Translator(
-        n_dim_coding=args.gen_n_dim_coding,
-        p_coding=args.gen_p_coding,
         latent_size=args.latent_dim,
         device=device,
         num_tasks=n_tasks,
@@ -179,6 +177,7 @@ def run(args):
                 local_gen_lr=args.local_gen_lr,
                 num_gen_images=args.num_gen_images,
                 local_scheduler_rate=args.local_scheduler_rate,
+                global_scheduler_rate=args.global_scheduler_rate,
                 gan_type=args.gan_type,
                 n_critic_steps=args.n_critic_steps,
                 lambda_gp=args.lambda_gp,
@@ -193,6 +192,7 @@ def run(args):
             print("Wrong training procedure")
             return None
 
+        curr_global_generator.eval()
         for learned_task_id in range(0, task_id + 1):
             generations, embeddings = curr_global_generator(
                 torch.randn(args.num_gen_images, curr_global_generator.latent_dim).to(
@@ -212,7 +212,7 @@ def run(args):
             # fig.savefig(f"results/{args.experiment_name}/generations_task_{learned_task_id}")
             wandb.log(
                 {
-                    f"generations_{args.experiment_name}_task_{learned_task_id}": wandb.Image(
+                    f"final_generations_task_{learned_task_id}": wandb.Image(
                         generations
                     ),
                 }
@@ -454,18 +454,6 @@ def get_args(argv):
     )
     parser.add_argument("--lambda_gp", type=int, default=10)
     parser.add_argument(
-        "--gen_p_coding",
-        type=int,
-        default=9,
-        help="Prime number used to calculated codes in binary autoencoder",
-    )
-    parser.add_argument(
-        "--gen_n_dim_coding",
-        type=int,
-        default=4,
-        help="Number of bits used to code task id in binary autoencoder",
-    )
-    parser.add_argument(
         "--limit_previous",
         default=0.5,
         type=float,
@@ -489,7 +477,11 @@ def get_args(argv):
 if __name__ == "__main__":
     args = get_args(sys.argv[1:])
 
-    wandb.init(project="MultibandGAN", name=f"{args.experiment_name}", config=vars(args))
+    wandb.init(
+        project=f"MultibandGAN_{args.dataset}",
+        name=f"{args.experiment_name}",
+        config=vars(args),
+    )
 
     torch.cuda.set_device(args.gpuid[0])
     device = torch.device("cuda")
