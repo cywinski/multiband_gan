@@ -94,7 +94,7 @@ def generate_previous_data(n_prev_tasks, n_prev_examples, curr_global_generator)
         return generations, random_noise, task_ids
 
 
-def optimize_noise(images, generator, n_iterations, task_id, lr):
+def optimize_noise(images, generator, n_iterations, task_id, lr, log=False):
     generator.eval()
 
     images = images.to(generator.device)
@@ -116,8 +116,7 @@ def optimize_noise(images, generator, n_iterations, task_id, lr):
                 f"[Noise optimization] [Epoch {i}/{n_iterations}] [Loss: {loss.item():.3f}]"
             )
 
-        # Log only first epoch for better readability
-        if not i:
+        if log:
             wandb.log(
                 {
                     f"loss_optimization_task_{task_id}": np.round(loss.item(), 3),

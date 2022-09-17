@@ -11,7 +11,7 @@ class Generator(nn.Module):
         self.init_size = img_shape[1] // 4
         self.num_features = num_features
         self.l1 = nn.Sequential(
-            nn.Linear(latent_dim, (num_features * 4) * self.init_size**2),
+            nn.Linear(latent_dim, (num_features * 8) * self.init_size**2),
         )
         self.latent_dim = latent_dim
         self.img_shape = img_shape
@@ -29,11 +29,11 @@ class Generator(nn.Module):
             return block
 
         self.conv_blocks = nn.Sequential(
-            nn.BatchNorm2d(num_features * 4),
-            *generator_block(num_features * 4, num_features * 4),
-            *generator_block(num_features * 4, num_features * 2),
+            nn.BatchNorm2d(num_features * 8),
+            *generator_block(num_features * 8, num_features * 8),
+            *generator_block(num_features * 8, num_features * 4),
             nn.Conv2d(
-                num_features * 2, img_shape[0], kernel_size=3, stride=1, padding=1
+                num_features * 4, img_shape[0], kernel_size=3, stride=1, padding=1
             ),
             nn.Tanh(),
         )
@@ -44,7 +44,7 @@ class Generator(nn.Module):
 
         out = self.l1(translator_emb)
         out = out.view(
-            out.shape[0], (self.num_features * 4), self.init_size, self.init_size
+            out.shape[0], (self.num_features * 8), self.init_size, self.init_size
         )
         img = self.conv_blocks(out)
 
@@ -52,35 +52,6 @@ class Generator(nn.Module):
             return img, translator_emb
 
         return img
-
-
-# class Generator(nn.Module):
-#     def __init__(self, latent_dim, img_shape, device):
-#         super(Generator, self).__init__()
-#         self.latent_dim = latent_dim
-#         self.img_shape = img_shape
-#         self.device = device
-#
-#         def block(in_feat, out_feat, normalize=True):
-#             layers = [nn.Linear(in_feat, out_feat)]
-#             if normalize:
-#                 layers.append(nn.BatchNorm1d(out_feat, 0.8))
-#             layers.append(nn.LeakyReLU(0.2, inplace=True))
-#             return layers
-#
-#         self.model = nn.Sequential(
-#                 *block(latent_dim, 128, normalize=False),
-#                 *block(128, 256),
-#                 *block(256, 512),
-#                 *block(512, 1024),
-#                 nn.Linear(1024, int(np.prod(img_shape))),
-#                 nn.Tanh()
-#                 )
-#
-#     def forward(self, z):
-#         img = self.model(z)
-#         img = img.view(img.size(0), *self.img_shape)
-#         return img
 
 
 class Discriminator(nn.Module):
@@ -116,7 +87,7 @@ class Discriminator(nn.Module):
             nn.LeakyReLU(0.2),
             *discriminator_block(num_features, num_features * 2),
             *discriminator_block(num_features * 2, num_features * 4),
-            *discriminator_block(num_features * 4, num_features * 8),  # 2x2
+            *discriminator_block(num_features * 4, num_features * 8),
         )
 
         # The height and width of downsampled image
@@ -135,6 +106,35 @@ class Discriminator(nn.Module):
         validity = self.adv_layer(x)
 
         return validity
+
+
+# class Generator(nn.Module):
+#     def __init__(self, latent_dim, img_shape, device):
+#         super(Generator, self).__init__()
+#         self.latent_dim = latent_dim
+#         self.img_shape = img_shape
+#         self.device = device
+#
+#         def block(in_feat, out_feat, normalize=True):
+#             layers = [nn.Linear(in_feat, out_feat)]
+#             if normalize:
+#                 layers.append(nn.BatchNorm1d(out_feat, 0.8))
+#             layers.append(nn.LeakyReLU(0.2, inplace=True))
+#             return layers
+#
+#         self.model = nn.Sequential(
+#                 *block(latent_dim, 128, normalize=False),
+#                 *block(128, 256),
+#                 *block(256, 512),
+#                 *block(512, 1024),
+#                 nn.Linear(1024, int(np.prod(img_shape))),
+#                 nn.Tanh()
+#                 )
+#
+#     def forward(self, z):
+#         img = self.model(z)
+#         img = img.view(img.size(0), *self.img_shape)
+#         return img
 
 
 # class Discriminator(nn.Module):
