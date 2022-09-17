@@ -397,6 +397,7 @@ def train_global_generator(
                     num_epochs_noise_optim,
                     task_id,
                     lr=optim_noise_lr,
+                    log=not i,  # log only first batch for readability
                 )
                 curr_noise_all.append(curr_noise.to("cpu"))
             else:
