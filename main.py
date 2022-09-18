@@ -380,8 +380,8 @@ def get_args(argv):
         help="Randomize the order of splits",
     )
     parser.add_argument(
-        "--latent_dim", type=int, default=128, help="Latent dimension of Generator"
-    )
+            "--latent_dim", type=int, default=100, help="Latent dimension of Generator"
+            )
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument(
         "--score_on_val",
@@ -421,31 +421,31 @@ def get_args(argv):
         help="Number of epochs to train local GAN",
     )
     parser.add_argument(
-        "--num_global_epochs",
-        type=int,
-        default=100,
-        help="Number of epochs to train global GAN",
-    )
+            "--num_global_epochs",
+            type=int,
+            default=40,
+            help="Number of epochs to train global GAN",
+            )
     parser.add_argument(
-        "--num_epochs_noise_optim",
-        type=int,
-        default=400,
-        help="Number of epochs to optimize noise in global training",
-    )
-    parser.add_argument("--local_dis_lr", type=float, default=0.0002)
-    parser.add_argument("--local_gen_lr", type=float, default=0.0002)
-    parser.add_argument("--global_gen_lr", type=float, default=0.0002)
-    parser.add_argument("--optim_noise_lr", type=float, default=0.001)
+            "--num_epochs_noise_optim",
+            type=int,
+            default=1000,
+            help="Number of epochs to optimize noise in global training",
+            )
+    parser.add_argument("--local_dis_lr", type=float, default=0.0001)
+    parser.add_argument("--local_gen_lr", type=float, default=0.0001)
+    parser.add_argument("--global_gen_lr", type=float, default=0.001)
+    parser.add_argument("--optim_noise_lr", type=float, default=0.05)
     parser.add_argument(
-        "--num_gen_images",
-        type=int,
-        default=16,
-        help="Number of images to generate each epoch",
-    )
+            "--num_gen_images",
+            type=int,
+            default=64,
+            help="Number of images to generate each epoch",
+            )
     parser.add_argument("--local_scheduler_rate", type=float, default=0.99)
     parser.add_argument("--global_scheduler_rate", type=float, default=0.99)
     parser.add_argument(
-        "--gan_type", type=str, default="wgan", choices=["wgan", "dcgan"]
+            "--gan_type", type=str, default="wgan", choices=["wgan", "dcgan"]
     )
     parser.add_argument(
         "--n_critic_steps",

@@ -34,10 +34,13 @@ def train_local_dcgan(
     local_discriminator.train()
     local_generator.translator.train()
     optimizer_g = torch.optim.Adam(
-        local_generator.parameters(), lr=local_gen_lr, betas=(0.5, 0.9)
+        local_generator.parameters(), lr=local_gen_lr, betas=(0.0, 0.9)
     )
     optimizer_d = torch.optim.Adam(
-        local_discriminator.parameters(), lr=local_dis_lr, betas=(0.5, 0.9)
+        local_discriminator.parameters(),
+        lr=local_dis_lr,
+        betas=(0.0, 0.9),
+        weight_decay=1e-3,
     )
     # Loss function
     criterion = torch.nn.BCELoss()
