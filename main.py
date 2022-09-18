@@ -85,6 +85,7 @@ def run(args):
         device=device,
         is_wgan=True if args.gan_type == "wgan" else False,
         num_features=args.d_n_features,
+        num_tasks=n_tasks,
     ).to(device)
 
     local_generator.apply(gan_utils.weights_init_normal)

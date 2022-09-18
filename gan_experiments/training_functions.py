@@ -163,11 +163,12 @@ def train_local_wgan_gp(
 ):
     # Optimizers
     optimizer_g = torch.optim.Adam(
-        local_generator.parameters(), lr=local_gen_lr, betas=(0.0, 0.9)
+        local_generator.parameters(), lr=local_gen_lr, betas=(0.5, 0.999)
     )
     optimizer_d = torch.optim.Adam(
-        local_discriminator.parameters(), lr=local_dis_lr, betas=(0.0, 0.9)
+        local_discriminator.parameters(), lr=local_dis_lr, betas=(0.5, 0.999)
     )
+    # Schedulers
     scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
         optimizer_g, gamma=local_scheduler_rate
     )
@@ -191,7 +192,7 @@ def train_local_wgan_gp(
             )
 
             # ---------------------
-            #  Train Discriminator
+            #  Train Discriminator (Critic)
             # ---------------------
 
             optimizer_d.zero_grad()
@@ -211,11 +212,11 @@ def train_local_wgan_gp(
             # Add detach() so the backward() will not change the weights of generator
             fake_imgs.detach()
 
-            # Train on real images
+            # Train on real images -> compare predictions to 1
             d_output_real = local_discriminator(real_imgs, task_ids)
             d_loss_real = -torch.mean(d_output_real)
 
-            # Train on fake images
+            # Train on fake images -> compare predictions to -1
             d_output_fake = local_discriminator(fake_imgs, task_ids)
             d_loss_fake = torch.mean(d_output_fake)
 
@@ -228,7 +229,7 @@ def train_local_wgan_gp(
                 task_ids,
             )
             # Wasserstein distance
-            wasserstein_distance = d_loss_real + d_loss_fake
+            wasserstein_distance = -(d_loss_real + d_loss_fake)
 
             # Adversarial loss
             d_loss = d_loss_fake + d_loss_real + lambda_gp * gradient_penalty
@@ -248,7 +249,7 @@ def train_local_wgan_gp(
                 fake_imgs = local_generator(z, task_ids)
 
                 # Loss measures generator's ability to fool the discriminator
-                # Train on fake images
+                # Train on fake images -> compare predictions to 1
                 d_output_fake = local_discriminator(fake_imgs, task_ids)
                 g_loss = -torch.mean(d_output_fake)
 
