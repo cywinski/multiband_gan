@@ -11,7 +11,7 @@ class Generator(nn.Module):
         self.init_size = img_shape[1] // 4
         self.num_features = num_features
         self.l1 = nn.Sequential(
-            nn.Linear(latent_dim, (num_features * 8) * self.init_size**2),
+            nn.Linear(latent_dim, (num_features * 4) * self.init_size**2),
         )
         self.latent_dim = latent_dim
         self.img_shape = img_shape
@@ -29,12 +29,10 @@ class Generator(nn.Module):
             return block
 
         self.conv_blocks = nn.Sequential(
-            nn.BatchNorm2d(num_features * 8),
-            *generator_block(num_features * 8, num_features * 8),
-            *generator_block(num_features * 8, num_features * 4),
-            nn.Conv2d(
-                num_features * 4, img_shape[0], kernel_size=3, stride=1, padding=1
-            ),
+            nn.BatchNorm2d(num_features * 4),
+            *generator_block(num_features * 4, num_features * 2),
+            *generator_block(num_features * 2, num_features),
+            nn.Conv2d(num_features, img_shape[0], kernel_size=3, stride=1, padding=1),
             nn.Tanh(),
         )
 
@@ -44,7 +42,7 @@ class Generator(nn.Module):
 
         out = self.l1(translator_emb)
         out = out.view(
-            out.shape[0], (self.num_features * 8), self.init_size, self.init_size
+            out.shape[0], (self.num_features * 4), self.init_size, self.init_size
         )
         img = self.conv_blocks(out)
 
@@ -55,11 +53,12 @@ class Generator(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, img_shape, device, num_features, is_wgan=False):
+    def __init__(self, img_shape, device, num_features, num_tasks, is_wgan=False):
         super(Discriminator, self).__init__()
         self.img_shape = img_shape
         self.device = device
         self.is_wgan = is_wgan
+        self.num_tasks = num_tasks
 
         def discriminator_block(in_filters, out_filters, bn=True):
             if not self.is_wgan:
@@ -94,15 +93,21 @@ class Discriminator(nn.Module):
         ds_size = int(np.ceil(img_shape[1] / 2**4))
         if not self.is_wgan:
             self.adv_layer = nn.Sequential(
-                nn.Linear(((num_features * 8) * ds_size**2) + 1, 1), nn.Sigmoid()
+                nn.Linear(((num_features * 8) * ds_size**2) + self.num_tasks, 1),
+                nn.Sigmoid(),
             )
         else:
-            self.adv_layer = nn.Linear(((num_features * 8) * ds_size**2) + 1, 1)
+            self.adv_layer = nn.Linear(
+                ((num_features * 8) * ds_size**2) + self.num_tasks, 1
+            )
 
     def forward(self, img, task_id):
         out = self.model(img)
         out = out.view(out.shape[0], -1)
-        x = torch.cat([out, torch.unsqueeze(task_id, 1).to(self.device)], dim=1)
+        # TODO: Try with torch.nn.Embedding
+        task_id = F.one_hot(task_id.long(), num_classes=self.num_tasks).to(self.device)
+        x = torch.cat([out, task_id], dim=1)
+        # x = torch.cat([out, torch.unsqueeze(task_id, 1).to(self.device)], dim=1)
         validity = self.adv_layer(x)
 
         return validity
