@@ -16,11 +16,6 @@ from gan_experiments.validation import Validator
 from visualise import *
 
 
-# Exemplary run:
-# python .\main.py --experiment_name testGAN_new_repo2 --dataset MNIST --gpuid 0 --seed 42 --skip_normalization --num_batches 5 --latent_dim 128 --batch_size 64 --score_on_val
-# --num_local_epochs 100 --num_global_epochs 100 --local_dis_lr 0.002 --local_gen_lr 0.002
-
-
 def run(args):
     if not os.path.exists("outputs"):
         os.mkdir("outputs")
@@ -72,6 +67,7 @@ def run(args):
         latent_size=args.latent_dim,
         device=device,
         num_tasks=n_tasks,
+        task_embedding_dim=args.task_embedding_dim,
     ).to(device)
     local_generator = models_definition.Generator(
         latent_dim=args.latent_dim,
@@ -86,6 +82,7 @@ def run(args):
         is_wgan=True if args.gan_type == "wgan" else False,
         num_features=args.d_n_features,
         num_tasks=n_tasks,
+        task_embedding_dim=args.task_embedding_dim,
     ).to(device)
 
     local_generator.apply(gan_utils.weights_init_normal)
@@ -188,6 +185,8 @@ def run(args):
                 global_gen_lr=args.global_gen_lr,
                 num_epochs_noise_optim=args.num_epochs_noise_optim,
                 optim_noise_lr=args.optim_noise_lr,
+                local_b1=args.local_b1,
+                local_b2=args.local_b2,
             )
         else:
             print("Wrong training procedure")
@@ -432,14 +431,14 @@ def get_args(argv):
         default=1000,
         help="Number of epochs to optimize noise in global training",
     )
-    parser.add_argument("--local_dis_lr", type=float, default=0.0001)
-    parser.add_argument("--local_gen_lr", type=float, default=0.0001)
+    parser.add_argument("--local_dis_lr", type=float, default=0.0002)
+    parser.add_argument("--local_gen_lr", type=float, default=0.0002)
     parser.add_argument("--global_gen_lr", type=float, default=0.001)
     parser.add_argument("--optim_noise_lr", type=float, default=0.05)
     parser.add_argument(
         "--num_gen_images",
         type=int,
-        default=64,
+        default=32,
         help="Number of images to generate each epoch",
     )
     parser.add_argument("--local_scheduler_rate", type=float, default=0.99)
@@ -463,11 +462,29 @@ def get_args(argv):
     parser.add_argument(
         "--d_n_features",
         type=int,
-        default=64,
+        default=512,
         help="Number of features in discriminator",
     )
     parser.add_argument(
-        "--g_n_features", type=int, default=64, help="Number of features in generator"
+        "--g_n_features", type=int, default=512, help="Number of features in generator"
+    )
+    parser.add_argument(
+        "--local_b1",
+        default=0.0,
+        type=float,
+        help="Beta1 parameter of local Adam optimizer",
+    )
+    parser.add_argument(
+        "--local_b2",
+        default=0.9,
+        type=float,
+        help="Beta2 parameter of local Adam optimizer",
+    )
+    parser.add_argument(
+        "--task_embedding_dim",
+        default=5,
+        type=int,
+        help="Dimension of task embedding used in torch.nn.Embedding()",
     )
 
     args = parser.parse_args(argv)

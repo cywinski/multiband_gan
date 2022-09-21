@@ -53,12 +53,13 @@ class Generator(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, img_shape, device, num_features, num_tasks, is_wgan=False):
+    def __init__(self, img_shape, device, num_features, num_tasks, is_wgan=False, task_embedding_dim=5):
         super(Discriminator, self).__init__()
         self.img_shape = img_shape
         self.device = device
         self.is_wgan = is_wgan
         self.num_tasks = num_tasks
+        self.task_embedding_dim = task_embedding_dim
 
         def discriminator_block(in_filters, out_filters, bn=True):
             if not self.is_wgan:
@@ -89,25 +90,29 @@ class Discriminator(nn.Module):
             *discriminator_block(num_features * 4, num_features * 8),
         )
 
+        self.task_embedding = nn.Embedding(
+            num_embeddings=self.num_tasks,
+            embedding_dim=self.task_embedding_dim
+        )
+
         # The height and width of downsampled image
         ds_size = int(np.ceil(img_shape[1] / 2**4))
         if not self.is_wgan:
             self.adv_layer = nn.Sequential(
-                nn.Linear(((num_features * 8) * ds_size**2) + self.num_tasks, 1),
+                nn.Linear(((num_features * 8) * ds_size**2) + self.task_embedding_dim, 1),
                 nn.Sigmoid(),
             )
         else:
             self.adv_layer = nn.Linear(
-                ((num_features * 8) * ds_size**2) + self.num_tasks, 1
+                ((num_features * 8) * ds_size**2) + self.task_embedding_dim, 1
             )
 
     def forward(self, img, task_id):
         out = self.model(img)
         out = out.view(out.shape[0], -1)
-        # TODO: Try with torch.nn.Embedding
-        task_id = F.one_hot(task_id.long(), num_classes=self.num_tasks).to(self.device)
+        # task_id = F.one_hot(task_id.long(), num_classes=self.num_tasks).to(self.device)
+        task_id = self.task_embedding(task_id.long().to(self.device))
         x = torch.cat([out, task_id], dim=1)
-        # x = torch.cat([out, torch.unsqueeze(task_id, 1).to(self.device)], dim=1)
         validity = self.adv_layer(x)
 
         return validity
@@ -164,21 +169,27 @@ class Discriminator(nn.Module):
 
 
 class Translator(nn.Module):
-    def __init__(self, latent_size, device, num_tasks):
+    def __init__(self, latent_size, device, num_tasks, task_embedding_dim=5):
         super().__init__()
         self.device = device
         self.latent_size = latent_size
         self.num_tasks = num_tasks
+        self.task_embedding_dim = task_embedding_dim
 
         self.fc = nn.Sequential(
-            nn.Linear(self.num_tasks + latent_size, latent_size * 4),
+            nn.Linear(latent_size + self.task_embedding_dim, latent_size * 4),
             nn.LeakyReLU(0.2),
             nn.Linear(latent_size * 4, latent_size),
         )
+        
+        self.task_embedding = nn.Embedding(
+            num_embeddings=self.num_tasks,
+            embedding_dim=self.task_embedding_dim
+        )
 
     def forward(self, x, task_id):
-        # TODO: Try with torch.nn.Embedding
-        task_id = F.one_hot(task_id.long(), num_classes=self.num_tasks).to(self.device)
+        # task_id = F.one_hot(task_id.long(), num_classes=self.num_tasks).to(self.device)
+        task_id = self.task_embedding(task_id.long().to(self.device))
         x = torch.cat([x, task_id], dim=1)
         out = self.fc(x)
         return out

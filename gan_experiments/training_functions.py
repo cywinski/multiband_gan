@@ -28,18 +28,20 @@ def train_local_dcgan(
     local_dis_lr,
     num_gen_images,
     task_id,
+    b1,
+    b2
 ):
     # Optimizers
     local_generator.train()
     local_discriminator.train()
     local_generator.translator.train()
     optimizer_g = torch.optim.Adam(
-        local_generator.parameters(), lr=local_gen_lr, betas=(0.0, 0.9)
+        local_generator.parameters(), lr=local_gen_lr, betas=(b1, b2)
     )
     optimizer_d = torch.optim.Adam(
         local_discriminator.parameters(),
         lr=local_dis_lr,
-        betas=(0.0, 0.9),
+        betas=(b1, b2),
         weight_decay=1e-3,
     )
     # Loss function
@@ -163,13 +165,15 @@ def train_local_wgan_gp(
     lambda_gp,
     n_critic_steps,
     local_scheduler_rate,
+    b1,
+    b2
 ):
     # Optimizers
     optimizer_g = torch.optim.Adam(
-        local_generator.parameters(), lr=local_gen_lr, betas=(0.5, 0.999)
+        local_generator.parameters(), lr=local_gen_lr, betas=(b1, b2)
     )
     optimizer_d = torch.optim.Adam(
-        local_discriminator.parameters(), lr=local_dis_lr, betas=(0.5, 0.999)
+        local_discriminator.parameters(), lr=local_dis_lr, betas=(b1, b2), weight_decay=1e-3
     )
     # Schedulers
     scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
@@ -311,6 +315,8 @@ def train_local(
     gan_type,
     n_critic_steps,
     lambda_gp,
+    b1,
+    b2
 ):
     local_generator.train()
     local_discriminator.train()
@@ -329,6 +335,8 @@ def train_local(
             lambda_gp,
             n_critic_steps,
             local_scheduler_rate,
+            b1,
+            b2
         )
     else:
         train_local_dcgan(
@@ -340,6 +348,8 @@ def train_local(
             local_dis_lr,
             num_gen_images,
             task_id,
+            b1,
+            b2
         )
 
 
