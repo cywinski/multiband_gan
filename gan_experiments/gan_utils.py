@@ -72,6 +72,9 @@ def generate_images_grid(generator, device, task_ids, noise=None):
 def generate_previous_data(n_prev_tasks, n_prev_examples, curr_global_generator):
     curr_global_generator.eval()
     with torch.no_grad():
+        if not n_prev_examples:
+            return torch.Tensor().to(curr_global_generator.device), torch.Tensor().to(curr_global_generator.device), torch.Tensor().to(curr_global_generator.device)
+        
         # Generate equally distributed examples from previous tasks
         # było trochę inaczej :)
         tasks_dist = [n_prev_examples // n_prev_tasks for _ in range(n_prev_tasks)]

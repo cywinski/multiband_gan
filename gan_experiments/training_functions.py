@@ -446,15 +446,25 @@ def train_global_generator(
                     f"[Global G] [Epoch {epoch + 1}/{n_epochs}] [Batch {i + 1}/{len(task_loader)}] [G loss: {g_loss.item():.3f}]"
                 )
 
-            wandb.log(
-                {
-                    f"prev_examples_task_{task_id}": wandb.Image(prev_examples),
-                    f"global_generations_task_{task_id}": wandb.Image(
-                        global_generations
-                    ),
-                    f"global_g_loss_task_{task_id}": np.round(g_loss.item(), 3),
-                }
-            )
+            if n_prev_examples:
+                wandb.log(
+                    {
+                        f"prev_examples_task_{task_id}": wandb.Image(prev_examples),
+                        f"global_generations_task_{task_id}": wandb.Image(
+                            global_generations
+                        ),
+                        f"global_g_loss_task_{task_id}": np.round(g_loss.item(), 3),
+                    }
+                )
+            else:
+                wandb.log(
+                    {
+                        f"global_generations_task_{task_id}": wandb.Image(
+                            global_generations
+                        ),
+                        f"global_g_loss_task_{task_id}": np.round(g_loss.item(), 3),
+                    }
+                )
 
         scheduler_g.step()
 
