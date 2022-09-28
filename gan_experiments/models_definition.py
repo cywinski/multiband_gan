@@ -1,17 +1,24 @@
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 class Generator(nn.Module):
     def __init__(self, latent_dim, img_shape, device, translator, num_features):
         super(Generator, self).__init__()
 
-        self.init_size = img_shape[1] // 4
+        self.init_size = (
+            img_shape[1] // 4 if img_shape[1] in [28, 44] else img_shape[1] // 8
+        )
         self.num_features = num_features
-        self.l1 = nn.Sequential(
-            nn.Linear(latent_dim, (num_features * 4) * self.init_size**2),
+        self.l1 = (
+            nn.Sequential(
+                nn.Linear(latent_dim, (num_features * 4) * self.init_size**2),
+            )
+            if img_shape[1] in [28, 44]
+            else nn.Sequential(
+                nn.Linear(latent_dim, (num_features * 8) * self.init_size**2),
+            )
         )
         self.latent_dim = latent_dim
         self.img_shape = img_shape
@@ -22,18 +29,47 @@ class Generator(nn.Module):
         def generator_block(in_filters, out_filters):
             block = [
                 nn.Upsample(scale_factor=2),
-                nn.Conv2d(in_filters, out_filters, kernel_size=3, stride=1, padding=1),
+                nn.Conv2d(
+                    in_filters,
+                    out_filters,
+                    kernel_size=(3, 3),
+                    stride=(1, 1),
+                    padding=1,
+                ),
                 nn.BatchNorm2d(out_filters),
                 nn.ReLU(inplace=True),
             ]
             return block
 
-        self.conv_blocks = nn.Sequential(
-            nn.BatchNorm2d(num_features * 4),
-            *generator_block(num_features * 4, num_features * 2),
-            *generator_block(num_features * 2, num_features),
-            nn.Conv2d(num_features, img_shape[0], kernel_size=3, stride=1, padding=1),
-            nn.Tanh(),
+        self.conv_blocks = (
+            nn.Sequential(
+                nn.BatchNorm2d(num_features * 4),
+                *generator_block(num_features * 4, num_features * 2),
+                *generator_block(num_features * 2, num_features),
+                nn.Conv2d(
+                    num_features,
+                    img_shape[0],
+                    kernel_size=(3, 3),
+                    stride=(1, 1),
+                    padding=1,
+                ),
+                nn.Tanh(),
+            )
+            if img_shape[1] in [28, 44]
+            else nn.Sequential(
+                nn.BatchNorm2d(num_features * 8),
+                *generator_block(num_features * 8, num_features * 4),
+                *generator_block(num_features * 4, num_features * 2),
+                *generator_block(num_features * 2, num_features),
+                nn.Conv2d(
+                    num_features,
+                    img_shape[0],
+                    kernel_size=(3, 3),
+                    stride=(1, 1),
+                    padding=1,
+                ),
+                nn.Tanh(),
+            )
         )
 
     def forward(self, z, task_id, return_emb=False):
@@ -41,8 +77,14 @@ class Generator(nn.Module):
         translator_emb = self.translator(z, task_id)  # -> [batch_size, latent_dim]
 
         out = self.l1(translator_emb)
-        out = out.view(
-            out.shape[0], (self.num_features * 4), self.init_size, self.init_size
+        out = (
+            out.view(
+                out.shape[0], (self.num_features * 4), self.init_size, self.init_size
+            )
+            if self.img_shape[1] in [28, 44]
+            else out.view(
+                out.shape[0], (self.num_features * 8), self.init_size, self.init_size
+            )
         )
         img = self.conv_blocks(out)
 
@@ -53,7 +95,15 @@ class Generator(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, img_shape, device, num_features, num_tasks, is_wgan=False, task_embedding_dim=5):
+    def __init__(
+        self,
+        img_shape,
+        device,
+        num_features,
+        num_tasks,
+        is_wgan=False,
+        task_embedding_dim=5,
+    ):
         super(Discriminator, self).__init__()
         self.img_shape = img_shape
         self.device = device
@@ -65,7 +115,11 @@ class Discriminator(nn.Module):
             if not self.is_wgan:
                 block = [
                     nn.Conv2d(
-                        in_filters, out_filters, kernel_size=3, stride=2, padding=1
+                        in_filters,
+                        out_filters,
+                        kernel_size=(3, 3),
+                        stride=(2, 2),
+                        padding=1,
                     ),
                     nn.LeakyReLU(0.2, inplace=True),
                     nn.Dropout2d(0.25),
@@ -75,7 +129,11 @@ class Discriminator(nn.Module):
             else:
                 block = [
                     nn.Conv2d(
-                        in_filters, out_filters, kernel_size=3, stride=2, padding=1
+                        in_filters,
+                        out_filters,
+                        kernel_size=(3, 3),
+                        stride=(2, 2),
+                        padding=1,
                     ),
                     nn.InstanceNorm2d(out_filters, affine=True),
                     nn.LeakyReLU(0.2),
@@ -83,7 +141,9 @@ class Discriminator(nn.Module):
             return block
 
         self.model = nn.Sequential(
-            nn.Conv2d(img_shape[0], num_features, kernel_size=3, stride=2, padding=1),
+            nn.Conv2d(
+                img_shape[0], num_features, kernel_size=(3, 3), stride=(2, 2), padding=1
+            ),
             nn.LeakyReLU(0.2),
             *discriminator_block(num_features, num_features * 2),
             *discriminator_block(num_features * 2, num_features * 4),
@@ -91,15 +151,16 @@ class Discriminator(nn.Module):
         )
 
         self.task_embedding = nn.Embedding(
-            num_embeddings=self.num_tasks,
-            embedding_dim=self.task_embedding_dim
+            num_embeddings=self.num_tasks, embedding_dim=self.task_embedding_dim
         )
 
         # The height and width of downsampled image
         ds_size = int(np.ceil(img_shape[1] / 2**4))
         if not self.is_wgan:
             self.adv_layer = nn.Sequential(
-                nn.Linear(((num_features * 8) * ds_size**2) + self.task_embedding_dim, 1),
+                nn.Linear(
+                    ((num_features * 8) * ds_size**2) + self.task_embedding_dim, 1
+                ),
                 nn.Sigmoid(),
             )
         else:
@@ -181,10 +242,9 @@ class Translator(nn.Module):
             nn.LeakyReLU(0.2),
             nn.Linear(latent_size * 4, latent_size),
         )
-        
+
         self.task_embedding = nn.Embedding(
-            num_embeddings=self.num_tasks,
-            embedding_dim=self.task_embedding_dim
+            num_embeddings=self.num_tasks, embedding_dim=self.task_embedding_dim
         )
 
     def forward(self, x, task_id):
