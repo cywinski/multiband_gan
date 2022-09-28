@@ -48,6 +48,11 @@ def run(args):
     for task_name, task in train_dataset_splits.items():
         labels_tasks[int(task_name)] = task.dataset.class_list
 
+    tasks_num_classes_dict = {
+        task_id: [train_dataset.dataset.classes[i] for i in class_idxs]
+        for task_id, class_idxs in labels_tasks.items()
+    }
+
     n_tasks = len(labels_tasks)
 
     # Decide split ordering
@@ -56,6 +61,10 @@ def run(args):
     if args.rand_split_order:
         random.shuffle(task_names)
         print("Shuffled task order:", task_names)
+
+    print("Classes order: ", end="")
+    print([tasks_num_classes_dict[task_name] for task_name in task_names])
+
     fid_table = OrderedDict()
     precision_table = OrderedDict()
     recall_table = OrderedDict()
@@ -155,7 +164,9 @@ def run(args):
     curr_global_generator = None
 
     for task_id in range(len(task_names)):
-        print("######### Task number {} #########".format(task_id))
+        print(
+            f"###### Task number {task_id} -> {tasks_num_classes_dict[task_id]} ######"
+        )
 
         task_name = task_names[task_id]
         train_dataset_loader = train_loaders[task_id]
