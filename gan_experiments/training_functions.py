@@ -29,7 +29,7 @@ def train_local_dcgan(
     num_gen_images,
     task_id,
     b1,
-    b2
+    b2,
 ):
     # Optimizers
     local_generator.train()
@@ -166,14 +166,17 @@ def train_local_wgan_gp(
     n_critic_steps,
     local_scheduler_rate,
     b1,
-    b2
+    b2,
 ):
     # Optimizers
     optimizer_g = torch.optim.Adam(
         local_generator.parameters(), lr=local_gen_lr, betas=(b1, b2)
     )
     optimizer_d = torch.optim.Adam(
-        local_discriminator.parameters(), lr=local_dis_lr, betas=(b1, b2), weight_decay=1e-3
+        local_discriminator.parameters(),
+        lr=local_dis_lr,
+        betas=(b1, b2),
+        weight_decay=1e-3,
     )
     # Schedulers
     scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
@@ -220,11 +223,11 @@ def train_local_wgan_gp(
             fake_imgs.detach()
 
             # Train on real images -> compare predictions to 1
-            d_output_real = local_discriminator(real_imgs, task_ids)
+            d_output_real = local_discriminator(real_imgs)
             d_loss_real = -torch.mean(d_output_real)
 
             # Train on fake images -> compare predictions to -1
-            d_output_fake = local_discriminator(fake_imgs, task_ids)
+            d_output_fake = local_discriminator(fake_imgs)
             d_loss_fake = torch.mean(d_output_fake)
 
             # Gradient penalty
@@ -233,7 +236,6 @@ def train_local_wgan_gp(
                 real_imgs.data,
                 fake_imgs.data,
                 local_generator.device,
-                task_ids,
             )
             # Wasserstein distance
             wasserstein_distance = -(d_loss_real + d_loss_fake)
@@ -257,7 +259,7 @@ def train_local_wgan_gp(
 
                 # Loss measures generator's ability to fool the discriminator
                 # Train on fake images -> compare predictions to 1
-                d_output_fake = local_discriminator(fake_imgs, task_ids)
+                d_output_fake = local_discriminator(fake_imgs)
                 g_loss = -torch.mean(d_output_fake)
 
                 g_loss.backward()
@@ -316,7 +318,7 @@ def train_local(
     n_critic_steps,
     lambda_gp,
     b1,
-    b2
+    b2,
 ):
     local_generator.train()
     local_discriminator.train()
@@ -336,7 +338,7 @@ def train_local(
             n_critic_steps,
             local_scheduler_rate,
             b1,
-            b2
+            b2,
         )
     else:
         train_local_dcgan(
@@ -349,7 +351,7 @@ def train_local(
             num_gen_images,
             task_id,
             b1,
-            b2
+            b2,
         )
 
 

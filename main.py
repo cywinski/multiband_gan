@@ -14,6 +14,7 @@ from continual_benchmark.dataloaders.datasetGen import data_split
 from gan_experiments import models_definition, gan_utils, multiband_training
 from gan_experiments.validation import Validator
 from visualise import *
+from utils import count_parameters
 
 
 def run(args):
@@ -48,10 +49,13 @@ def run(args):
     for task_name, task in train_dataset_splits.items():
         labels_tasks[int(task_name)] = task.dataset.class_list
 
-    tasks_num_classes_dict = {
-        task_id: [train_dataset.dataset.classes[i] for i in class_idxs]
-        for task_id, class_idxs in labels_tasks.items()
-    }
+    if hasattr(train_dataset.dataset, "classes"):
+        tasks_num_classes_dict = {
+            task_id: [train_dataset.dataset.classes[i] for i in class_idxs]
+            for task_id, class_idxs in labels_tasks.items()
+        }
+    else:
+        tasks_num_classes_dict = None
 
     n_tasks = len(labels_tasks)
 
@@ -62,8 +66,9 @@ def run(args):
         random.shuffle(task_names)
         print("Shuffled task order:", task_names)
 
-    print("Classes order: ", end="")
-    print([tasks_num_classes_dict[task_name] for task_name in task_names])
+    if tasks_num_classes_dict is not None:
+        print("Classes order: ", end="")
+        print([tasks_num_classes_dict[task_name] for task_name in task_names])
 
     fid_table = OrderedDict()
     precision_table = OrderedDict()
@@ -84,14 +89,14 @@ def run(args):
         device=device,
         translator=translator,
         num_features=args.g_n_features,
+        layers_type=args.gen_layers,
     ).to(device)
     local_discriminator = models_definition.Discriminator(
         img_shape=train_dataset[0][0].shape,
         device=device,
         is_wgan=True if args.gan_type == "wgan" else False,
         num_features=args.d_n_features,
-        num_tasks=n_tasks,
-        task_embedding_dim=args.task_embedding_dim,
+        gen_layers_type=args.gen_layers,
     ).to(device)
 
     local_generator.apply(gan_utils.weights_init_normal)
@@ -99,13 +104,20 @@ def run(args):
     # translate_noise = True
 
     print(local_generator)
+    print(
+        f"Generator number of learnable parmeters: {count_parameters(local_generator)}"
+    )
     print(local_discriminator)
+    print(
+        f"Discriminator number of learnable parmeters: {count_parameters(local_discriminator)}"
+    )
 
     class_table = torch.zeros(n_tasks, num_classes, dtype=torch.long)
-    train_loaders = []
+    local_train_loaders = []
+    global_train_loaders = []
     val_loaders = []
     for task_name in range(n_tasks):
-        # Manually shuffle train dataset to disable shuffling by DataLoader.
+        # Manually shuffle train dataset to disable shuffling by global DataLoader.
         # This way we are getting the same order of batches each epoch, thus we are
         # able to optimize noise during global training only in first epoch.
         train_data_shuffle = torch.randperm(
@@ -114,14 +126,22 @@ def run(args):
         train_dataset_splits[task_name].dataset = data.Subset(
             dataset=train_dataset_splits[task_name].dataset, indices=train_data_shuffle
         )
-        train_dataset_loader = data.DataLoader(
+        global_train_dataset_loader = data.DataLoader(
             dataset=train_dataset_splits[task_name],
             batch_size=args.batch_size,
             shuffle=False,
             drop_last=False,
         )
 
-        train_loaders.append(train_dataset_loader)
+        local_train_dataset_loader = data.DataLoader(
+            dataset=train_dataset_splits[task_name],
+            batch_size=args.batch_size,
+            shuffle=True,
+            drop_last=False,
+        )
+
+        local_train_loaders.append(local_train_dataset_loader)
+        global_train_loaders.append(global_train_dataset_loader)
         val_data = (
             val_dataset_splits[task_name]
             if args.score_on_val
@@ -166,10 +186,13 @@ def run(args):
     for task_id in range(len(task_names)):
         print(
             f"###### Task number {task_id} -> {tasks_num_classes_dict[task_id]} ######"
+        ) if tasks_num_classes_dict is not None else print(
+            f"###### Task number {task_id} ######"
         )
 
         task_name = task_names[task_id]
-        train_dataset_loader = train_loaders[task_id]
+        local_train_dataset_loader = local_train_loaders[task_id]
+        global_train_dataset_loader = global_train_loaders[task_id]
 
         if args.training_procedure == "multiband":
             (
@@ -179,7 +202,8 @@ def run(args):
                 task_id=task_id,
                 local_discriminator=local_discriminator,
                 local_generator=local_generator,
-                task_loader=train_dataset_loader,
+                local_task_loader=local_train_dataset_loader,
+                global_task_loader=global_train_dataset_loader,
                 n_local_epochs=args.num_local_epochs,
                 n_global_epochs=args.num_global_epochs,
                 local_dis_lr=args.local_dis_lr,
@@ -496,6 +520,13 @@ def get_args(argv):
         default=5,
         type=int,
         help="Dimension of task embedding used in torch.nn.Embedding()",
+    )
+    parser.add_argument(
+        "--gen_layers",
+        type=str,
+        default="upsample",
+        choices=["upsample", "transpose"],
+        help="Type of layers in generator network - Upsample + Conv2d | ConvTranspose2d",
     )
 
     args = parser.parse_args(argv)

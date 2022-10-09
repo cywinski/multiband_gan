@@ -9,7 +9,8 @@ def train_multiband_gan(
     task_id,
     local_discriminator,
     local_generator,
-    task_loader,
+    local_task_loader,
+    global_task_loader,
     n_local_epochs,
     n_global_epochs,
     local_dis_lr,
@@ -27,14 +28,14 @@ def train_multiband_gan(
     num_epochs_noise_optim,
     optim_noise_lr,
     local_b1,
-    local_b2
+    local_b2,
 ):
     print(f"Started training local GAN model on task nr {task_id}")
     training_functions.train_local(
         local_generator=local_generator,
         local_discriminator=local_discriminator,
         n_epochs=n_local_epochs + n_global_epochs if not task_id else n_local_epochs,
-        task_loader=task_loader,
+        task_loader=local_task_loader,
         task_id=task_id,
         local_dis_lr=local_dis_lr,
         local_gen_lr=local_gen_lr,
@@ -44,7 +45,7 @@ def train_multiband_gan(
         n_critic_steps=n_critic_steps,
         lambda_gp=lambda_gp,
         b1=local_b1,
-        b2=local_b2
+        b2=local_b2,
     )
     print(f"Done training local GAN model on task nr {task_id}")
     curr_global_discriminator = copy.deepcopy(local_discriminator)
@@ -58,7 +59,7 @@ def train_multiband_gan(
             limit_previous_examples=limit_previous_examples,
             curr_global_generator=curr_global_generator,
             n_epochs=n_global_epochs,
-            task_loader=task_loader,
+            task_loader=global_task_loader,
             curr_local_generator=local_generator,
             global_gen_lr=global_gen_lr,
             warmup_rounds=10,
