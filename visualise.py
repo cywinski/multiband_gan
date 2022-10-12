@@ -46,12 +46,12 @@ def acc_over_time_plot(ax, array):
     ax.plot(np.arange(1, num_tasks + 1), mean)
 
 
-def plot_final_results(names, rpath='results/', type="fid", fid_local_vae=None):
+def plot_final_results(names, rpath='results/', type="fid", fid_local_gan=None):
     fig = plt.figure(figsize=(13, 5 * len(names)))
     gs = GridSpec(len(names), 3)
     additional = ""
-    if fid_local_vae != None:
-        additional = "local_vae_fid: " + str([(x, round(fid_local_vae[x], 2)) for x in fid_local_vae])
+    if fid_local_gan != None:
+        additional = "local_gan_fid: " + str([(x, round(fid_local_gan[x], 2)) for x in fid_local_gan])
     fig.suptitle(f"Experiment: {names[0]}\n {additional}")
     for e, name in enumerate(names):
         acc_dict = np.load(f"{rpath}{name}/fid.npy", allow_pickle=True).item()
@@ -72,6 +72,7 @@ def plot_final_results(names, rpath='results/', type="fid", fid_local_vae=None):
     plt.savefig(rpath + names[0] + f"/results_visualisation")  # , dpi=200)
     wandb.log({f"results_visualisation": wandb.Image(
             rpath + names[0] + f"/results_visualisation" + ".png")})
+    wandb.log({"mean_FID": np.mean(arr_fid)})
 
 
 if __name__ == '__main__':

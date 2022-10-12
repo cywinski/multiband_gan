@@ -183,7 +183,9 @@ def run(args):
 
     curr_global_generator = None
 
-    for task_id in range(len(task_names)):
+    tasks_to_learn = range(len(task_names)) if not args.only_task_0 else {0}
+    print(f"Tasks to learn: {tasks_to_learn}")
+    for task_id in tasks_to_learn:
         print(
             f"###### Task number {task_id} -> {tasks_num_classes_dict[task_id]} ######"
         ) if tasks_num_classes_dict is not None else print(
@@ -528,6 +530,13 @@ def get_args(argv):
         choices=["upsample", "transpose"],
         help="Type of layers in generator network - Upsample + Conv2d | ConvTranspose2d",
     )
+    parser.add_argument(
+        "--only_task_0",
+        dest="only_task_0",
+        default=False,
+        action="store_true",
+        help="Train only local GAN on first task",
+    )
 
     args = parser.parse_args(argv)
 
@@ -538,7 +547,7 @@ if __name__ == "__main__":
     args = get_args(sys.argv[1:])
 
     wandb.init(
-        project=f"MultibandGAN_{args.dataset}",
+        project=f"WGAN-GP_task_0_{args.dataset}" if args.only_task_0 else f"MultibandGAN_{args.dataset}",
         name=f"{args.experiment_name}",
         config=vars(args),
     )
@@ -584,5 +593,5 @@ if __name__ == "__main__":
         fid_local_gan,
     )
 
-    plot_final_results([args.experiment_name], type="fid", fid_local_vae=fid_local_gan)
+    plot_final_results([args.experiment_name], type="fid", fid_local_gan=fid_local_gan)
     print(fid_local_gan)

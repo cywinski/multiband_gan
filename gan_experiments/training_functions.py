@@ -292,7 +292,7 @@ def train_local_wgan_gp(
                 }
             )
 
-        if epoch % 1 == 0:
+        if epoch % 10 == 0:
             local_generator.eval()
             generations = local_generator(
                 fixed_noise,
@@ -470,7 +470,7 @@ def train_global_generator(
 
         scheduler_g.step()
 
-        if epoch % 1 == 0:
+        if epoch % 10 == 0:
             global_generator.eval()
             for learned_task_id in range(0, task_id + 1):
                 generations = global_generator(
