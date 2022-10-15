@@ -37,6 +37,7 @@ def grid_plot(ax, array, exp_name, type):
     ax.set_title(
             f"{type} -- {np.round(np.mean(array[:, :, -1], axis=(0, 1)), 3)} -- std {np.round(np.std(np.mean(array[:, :, -1], axis=1), axis=0), 2)}")
 
+    wandb.log({f"mean_{type}": np.round(np.mean(array[:, :, -1], axis=(0, 1)), 3)})
 
 def acc_over_time_plot(ax, array):
     num_tasks = array.shape[1]
@@ -72,7 +73,7 @@ def plot_final_results(names, rpath='results/', type="fid", fid_local_gan=None):
     plt.savefig(rpath + names[0] + f"/results_visualisation")  # , dpi=200)
     wandb.log({f"results_visualisation": wandb.Image(
             rpath + names[0] + f"/results_visualisation" + ".png")})
-    wandb.log({"mean_FID": np.mean(arr_fid)})
+    
 
 
 if __name__ == '__main__':
