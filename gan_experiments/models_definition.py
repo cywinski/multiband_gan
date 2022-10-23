@@ -25,7 +25,9 @@ class Generator(nn.Module):
             else 2
         )
         self.l1 = nn.Sequential(
-            nn.Linear(latent_dim, (num_features * 8) * self.init_size**2)
+            nn.Linear(latent_dim, (num_features * 8) * self.init_size**2),
+            nn.BatchNorm1d((num_features * 8) * self.init_size**2),
+            nn.ReLU(inplace=True),
         )
 
         def generator_block(
@@ -37,8 +39,9 @@ class Generator(nn.Module):
             bias,
             act_fun=nn.ReLU(inplace=True),
             bn=True,
+            output_padding=0,
         ):
-            if self.layers_type == "transpose":
+            if self.layers_type == "transpose" or self.layers_type == "vae":
                 block = [
                     nn.ConvTranspose2d(
                         in_filters,
@@ -47,6 +50,7 @@ class Generator(nn.Module):
                         stride=stride,
                         padding=padding,
                         bias=bias,
+                        output_padding=output_padding,
                     )
                 ]
             elif self.layers_type == "upsample":
@@ -143,11 +147,54 @@ class Generator(nn.Module):
                     ),
                     # size: 28x28
                 )
+            elif layers_type == "vae":
+                self.scaler = 4
+                self.l1 = nn.Linear(
+                    latent_dim, num_features * self.scaler * self.scaler * self.scaler
+                )
+                self.conv_blocks = nn.Sequential(
+                    # in: 4x4
+                    nn.BatchNorm2d(num_features * self.scaler),
+                    *generator_block(
+                        num_features * self.scaler,
+                        num_features * 4,
+                        kernel_size=(4, 4),
+                        stride=(2, 2),
+                        padding=0,
+                        bias=False,
+                    ),
+                    *generator_block(
+                        num_features * 4,
+                        num_features * 2,
+                        kernel_size=(4, 4),
+                        stride=(2, 2),
+                        padding=0,
+                        bias=False,
+                    ),
+                    *generator_block(
+                        num_features * 2,
+                        num_features,
+                        kernel_size=(4, 4),
+                        stride=(1, 1),
+                        padding=0,
+                        bias=False,
+                    ),
+                    *generator_block(
+                        num_features,
+                        img_shape[0],
+                        kernel_size=(4, 4),
+                        stride=(1, 1),
+                        padding=0,
+                        bias=False,
+                        act_fun=nn.Tanh(),
+                        bn=False,
+                    ),
+                )
         elif img_shape[1] == 32:
             if layers_type == "upsample":
                 self.conv_blocks = nn.Sequential(
                     # in: 4x4
-                    nn.BatchNorm2d(num_features * 8),
+                    # nn.BatchNorm2d(num_features * 8),
                     *generator_block(
                         num_features * 8,
                         num_features * 4,
@@ -188,7 +235,7 @@ class Generator(nn.Module):
             if layers_type == "transpose":
                 self.conv_blocks = nn.Sequential(
                     # in: 2x2
-                    nn.BatchNorm2d(num_features * 8),
+                    # nn.BatchNorm2d(num_features * 8),
                     *generator_block(
                         num_features * 8,
                         num_features * 4,
@@ -228,6 +275,63 @@ class Generator(nn.Module):
                     ),
                     # size: 32x32
                 )
+            elif layers_type == "vae":
+                self.scaler = img_shape[1] // 16
+                self.l1 = nn.Linear(
+                    latent_dim, num_features * self.scaler * self.scaler * self.scaler
+                )
+                self.conv_blocks = nn.Sequential(
+                    # in: 2x2
+                    nn.BatchNorm2d(num_features * self.scaler),
+                    *generator_block(
+                        num_features * self.scaler,
+                        num_features * 8,
+                        kernel_size=(4, 4),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                    ),
+                    # size: 4x4
+                    *generator_block(
+                        num_features * 8,
+                        num_features * 4,
+                        kernel_size=(4, 4),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                    ),
+                    # size: 8x8
+                    *generator_block(
+                        num_features * 4,
+                        num_features * 2,
+                        kernel_size=(4, 4),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                    ),
+                    # size: 16x16
+                    *generator_block(
+                        num_features * 2,
+                        num_features,
+                        kernel_size=(4, 4),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                    ),
+                    # size: 32x32
+                    *generator_block(
+                        num_features,
+                        img_shape[0],
+                        kernel_size=(5, 5),
+                        stride=(1, 1),
+                        padding=2,
+                        output_padding=0,
+                        bias=False,
+                        act_fun=nn.Tanh(),
+                        bn=False,
+                    ),
+                )
+
         elif img_shape[1] == 64:
             if layers_type == "upsample":
                 self.conv_blocks = nn.Sequential(
@@ -331,6 +435,53 @@ class Generator(nn.Module):
                     ),
                     # size: 64x64
                 )
+            elif layers_type == "vae":
+                self.scaler = img_shape[1] // 8
+                self.l1 = nn.Linear(
+                    latent_dim, num_features * self.scaler * self.scaler * self.scaler
+                )
+                self.conv_blocks = nn.Sequential(
+                    # in: 8x8
+                    nn.BatchNorm2d(num_features * self.scaler),
+                    *generator_block(
+                        num_features * self.scaler,
+                        num_features * 4,
+                        kernel_size=(5, 5),
+                        stride=(2, 2),
+                        padding=2,
+                        output_padding=1,
+                        bias=False,
+                    ),
+                    *generator_block(
+                        num_features * 4,
+                        num_features * 2,
+                        kernel_size=(5, 5),
+                        stride=(2, 2),
+                        padding=2,
+                        output_padding=1,
+                        bias=False,
+                    ),
+                    *generator_block(
+                        num_features * 2,
+                        num_features,
+                        kernel_size=(5, 5),
+                        stride=(2, 2),
+                        padding=2,
+                        output_padding=1,
+                        bias=False,
+                    ),
+                    *generator_block(
+                        num_features,
+                        img_shape[0],
+                        kernel_size=(5, 5),
+                        stride=(1, 1),
+                        padding=2,
+                        output_padding=0,
+                        bias=False,
+                        act_fun=nn.Tanh(),
+                        bn=False,
+                    ),
+                )
 
     def forward(self, z, task_id, return_emb=False):
         # Noise as input to translator, embedding as output
@@ -339,9 +490,8 @@ class Generator(nn.Module):
         )  # -> [batch_size, latent_dim] NOTE: conditioned by task_id
 
         out = self.l1(translator_emb)
-        out = out.view(
-            out.shape[0], (self.num_features * 8), self.init_size, self.init_size
-        )
+
+        out = out.view(-1, self.scaler * self.num_features, self.scaler, self.scaler)
         img = self.conv_blocks(out)
 
         if return_emb:
@@ -365,7 +515,14 @@ class Discriminator(nn.Module):
         self.is_wgan = is_wgan
 
         def discriminator_block(
-            in_filters, out_filters, kernel_size, stride, padding, bias, bn=True
+            in_filters,
+            out_filters,
+            kernel_size,
+            stride,
+            padding,
+            bias,
+            bn=True,
+            output_img_size=None,
         ):
             if not self.is_wgan:
                 block = [
@@ -393,7 +550,17 @@ class Discriminator(nn.Module):
                         bias=bias,
                     )
                 ]
-                if bn:
+                if bn or output_img_size is not None:
+                    block.append(
+                        nn.LayerNorm(
+                            normalized_shape=[
+                                out_filters,
+                                output_img_size,
+                                output_img_size,
+                            ]
+                        )
+                    )
+                else:
                     block.append(nn.InstanceNorm2d(out_filters, affine=True))
                 block.append(nn.LeakyReLU(0.2, inplace=True))
 
@@ -447,7 +614,7 @@ class Discriminator(nn.Module):
                     *discriminator_block(
                         img_shape[0],
                         num_features * 2,
-                        kernel_size=(4, 4),
+                        kernel_size=(3, 3),
                         stride=(2, 2),
                         padding=1,
                         bias=False,
@@ -457,7 +624,7 @@ class Discriminator(nn.Module):
                     *discriminator_block(
                         num_features * 2,
                         num_features * 4,
-                        kernel_size=(4, 4),
+                        kernel_size=(3, 3),
                         stride=(2, 2),
                         padding=1,
                         bias=False,
@@ -473,104 +640,355 @@ class Discriminator(nn.Module):
                     ),
                     # size: 4x4
                 )
+            elif gen_layers_type == "vae":
+                self.model = nn.Sequential(
+                    # in: 28x28
+                    *discriminator_block(
+                        img_shape[0],
+                        num_features,
+                        kernel_size=(4, 4),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                        output_img_size=14,
+                    ),
+                    # size: 14x14
+                    *discriminator_block(
+                        num_features,
+                        num_features,
+                        kernel_size=(4, 4),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                        output_img_size=7,
+                    ),
+                    # size: 7x7
+                    *discriminator_block(
+                        num_features,
+                        num_features,
+                        kernel_size=(4, 4),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                        output_img_size=3,
+                    ),
+                )
+                # size: 3x3
+                self.conv_out_size = 3
+                last_layers = [
+                    nn.Linear(num_features * self.conv_out_size * self.conv_out_size, 1)
+                ]
 
         elif img_shape[1] == 32:
-            self.model = nn.Sequential(
-                # in: 32x32
-                *discriminator_block(
-                    img_shape[0],
-                    num_features,
-                    kernel_size=(4, 4),
-                    stride=(2, 2),
-                    padding=1,
-                    bias=False,
-                    bn=False,
-                ),
-                # size: 16x16
-                *discriminator_block(
-                    num_features,
-                    num_features * 2,
-                    kernel_size=(4, 4),
-                    stride=(2, 2),
-                    padding=1,
-                    bias=False,
-                ),
-                # size: 8x8
-                *discriminator_block(
-                    num_features * 2,
-                    num_features * 4,
-                    kernel_size=(4, 4),
-                    stride=(2, 2),
-                    padding=1,
-                    bias=False,
-                ),
-                # size: 4x4
-                *discriminator_block(
-                    num_features * 4,
-                    num_features * 8,
-                    kernel_size=(4, 4),
-                    stride=(2, 2),
-                    padding=1,
-                    bias=False,
-                ),
+            if gen_layers_type == "transpose":
+                self.model = nn.Sequential(
+                    # in: 32x32
+                    *discriminator_block(
+                        img_shape[0],
+                        num_features,
+                        kernel_size=(4, 4),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                        bn=False,
+                        input_img_size=32,
+                    ),
+                    # size: 16x16
+                    *discriminator_block(
+                        num_features,
+                        num_features * 2,
+                        kernel_size=(4, 4),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                        input_img_size=16,
+                    ),
+                    # size: 8x8
+                    *discriminator_block(
+                        num_features * 2,
+                        num_features * 4,
+                        kernel_size=(4, 4),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                        input_img_size=8,
+                    ),
+                    # size: 4x4
+                    *discriminator_block(
+                        num_features * 4,
+                        num_features * 8,
+                        kernel_size=(4, 4),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                        input_img_size=4,
+                    ),
+                    # size: 2x2
+                )
+            elif gen_layers_type == "upsample":
+                self.model = nn.Sequential(
+                    # in: 32x32
+                    *discriminator_block(
+                        img_shape[0],
+                        num_features,
+                        kernel_size=(3, 3),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                        bn=False,
+                        input_img_size=32,
+                    ),
+                    # size: 16x16
+                    *discriminator_block(
+                        num_features,
+                        num_features * 2,
+                        kernel_size=(3, 3),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                        input_img_size=16,
+                    ),
+                    # size: 8x8
+                    *discriminator_block(
+                        num_features * 2,
+                        num_features * 4,
+                        kernel_size=(3, 3),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                        input_img_size=8,
+                    ),
+                    # size: 4x4
+                    *discriminator_block(
+                        num_features * 4,
+                        num_features * 8,
+                        kernel_size=(3, 3),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                        input_img_size=4,
+                    ),
+                )
                 # size: 2x2
-            )
+
+            elif gen_layers_type == "vae":
+                self.model = nn.Sequential(
+                    # in: 32x32
+                    *discriminator_block(
+                        img_shape[0],
+                        num_features,
+                        kernel_size=(4, 4),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                        output_img_size=16,
+                    ),
+                    # size: 16x16
+                    *discriminator_block(
+                        num_features,
+                        num_features * 2,
+                        kernel_size=(4, 4),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                        output_img_size=8,
+                    ),
+                    # size: 8x8
+                    *discriminator_block(
+                        num_features * 2,
+                        num_features * 4,
+                        kernel_size=(4, 4),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                        output_img_size=4,
+                    ),
+                    # size 4x4
+                    *discriminator_block(
+                        num_features * 4,
+                        num_features * 8,
+                        kernel_size=(4, 4),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                        output_img_size=2,
+                    ),
+                    # size: 2x2
+                    *discriminator_block(
+                        num_features * 8,
+                        num_features * 8,
+                        kernel_size=(3, 3),
+                        stride=(1, 1),
+                        padding=1,
+                        bias=False,
+                        output_img_size=2,
+                    )
+                    # size: 2x2
+                )
+                self.conv_out_size = 2
+                last_layers = [
+                    nn.Linear(
+                        num_features * 8 * self.conv_out_size * self.conv_out_size, 1
+                    )
+                ]
 
         elif img_shape[1] == 64:
-            self.model = nn.Sequential(
-                # in: 64x64
-                *discriminator_block(
-                    img_shape[0],
-                    num_features,
-                    kernel_size=(4, 4),
-                    stride=(2, 2),
-                    padding=1,
-                    bias=False,
-                    bn=False,
-                ),
-                # size: 32x32
-                *discriminator_block(
-                    num_features,
-                    num_features * 2,
-                    kernel_size=(4, 4),
-                    stride=(2, 2),
-                    padding=1,
-                    bias=False,
-                ),
-                # size: 16x16
-                *discriminator_block(
-                    num_features * 2,
-                    num_features * 4,
-                    kernel_size=(4, 4),
-                    stride=(2, 2),
-                    padding=1,
-                    bias=False,
-                ),
-                # size: 8x8
-                *discriminator_block(
-                    num_features * 4,
-                    num_features * 8,
-                    kernel_size=(4, 4),
-                    stride=(2, 2),
-                    padding=1,
-                    bias=False,
-                ),
-                # size: 4x4
-                *discriminator_block(
-                    num_features * 8,
-                    num_features * 8,
-                    kernel_size=(4, 4),
-                    stride=(2, 2),
-                    padding=1,
-                    bias=False,
-                ),
-                # size: 2x2
-            )
+            if gen_layers_type == "transpose":
+                self.model = nn.Sequential(
+                    # in: 64x64
+                    *discriminator_block(
+                        img_shape[0],
+                        num_features,
+                        kernel_size=(4, 4),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                        bn=False,
+                    ),
+                    # size: 32x32
+                    *discriminator_block(
+                        num_features,
+                        num_features * 2,
+                        kernel_size=(4, 4),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                    ),
+                    # size: 16x16
+                    *discriminator_block(
+                        num_features * 2,
+                        num_features * 4,
+                        kernel_size=(4, 4),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                    ),
+                    # size: 8x8
+                    *discriminator_block(
+                        num_features * 4,
+                        num_features * 8,
+                        kernel_size=(4, 4),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                    ),
+                    # size: 4x4
+                    *discriminator_block(
+                        num_features * 8,
+                        num_features * 8,
+                        kernel_size=(4, 4),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                    ),
+                    # size: 2x2
+                )
+            elif gen_layers_type == "upsample":
+                self.model = nn.Sequential(
+                    # in: 64x64
+                    *discriminator_block(
+                        img_shape[0],
+                        num_features,
+                        kernel_size=(3, 3),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                        bn=False,
+                    ),
+                    # size: 32x32
+                    *discriminator_block(
+                        num_features,
+                        num_features * 2,
+                        kernel_size=(3, 3),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                    ),
+                    # size: 16x16
+                    *discriminator_block(
+                        num_features * 2,
+                        num_features * 4,
+                        kernel_size=(3, 3),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                    ),
+                    # size: 8x8
+                    *discriminator_block(
+                        num_features * 4,
+                        num_features * 8,
+                        kernel_size=(3, 3),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                    ),
+                    # size: 4x4
+                    *discriminator_block(
+                        num_features * 8,
+                        num_features * 8,
+                        kernel_size=(3, 3),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                    ),
+                    # size: 2x2
+                )
+            elif gen_layers_type == "vae":
+                self.model = nn.Sequential(
+                    # in: 64x64
+                    *discriminator_block(
+                        img_shape[0],
+                        num_features,
+                        kernel_size=(5, 5),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                        output_img_size=31,
+                    ),
+                    # size: 31x31
+                    *discriminator_block(
+                        num_features,
+                        num_features * 2,
+                        kernel_size=(5, 5),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                        output_img_size=15,
+                    ),
+                    # size: 15x15
+                    *discriminator_block(
+                        num_features * 2,
+                        num_features * 4,
+                        kernel_size=(5, 5),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                        output_img_size=7,
+                    ),
+                    # size 7x7
+                    *discriminator_block(
+                        num_features * 4,
+                        num_features * 4,
+                        kernel_size=(5, 5),
+                        stride=(2, 2),
+                        padding=1,
+                        bias=False,
+                        output_img_size=3,
+                    ),
+                    # size: 3x3
+                )
+                self.conv_out_size = 3
+                last_layers = [
+                    nn.Linear(
+                        num_features * 4 * self.conv_out_size * self.conv_out_size, 1
+                    )
+                ]
 
-        if img_shape[1] == 28 and gen_layers_type == "upsample":
-            last_layers = [nn.Linear((num_features * 8) * 16, 1)]
-        else:
-            last_layers = [nn.Linear((num_features * 8) * 4, 1)]
+        # if img_shape[1] == 28 and gen_layers_type == "upsample":
+        #     last_layers = [nn.Linear((num_features * 8) * 16, 1)]
+        # else:
+        #     last_layers = [nn.Linear((num_features * 8) * 4, 1)]
+        #     # last_layers = [nn.Linear(196, 1)]
         if not self.is_wgan:
             last_layers.append(nn.Sigmoid())
 
@@ -582,56 +1000,6 @@ class Discriminator(nn.Module):
         validity = self.adv_layer(out)
 
         return validity
-
-
-# class Generator(nn.Module):
-#     def __init__(self, latent_dim, img_shape, device):
-#         super(Generator, self).__init__()
-#         self.latent_dim = latent_dim
-#         self.img_shape = img_shape
-#         self.device = device
-#
-#         def block(in_feat, out_feat, normalize=True):
-#             layers = [nn.Linear(in_feat, out_feat)]
-#             if normalize:
-#                 layers.append(nn.BatchNorm1d(out_feat, 0.8))
-#             layers.append(nn.LeakyReLU(0.2, inplace=True))
-#             return layers
-#
-#         self.model = nn.Sequential(
-#                 *block(latent_dim, 128, normalize=False),
-#                 *block(128, 256),
-#                 *block(256, 512),
-#                 *block(512, 1024),
-#                 nn.Linear(1024, int(np.prod(img_shape))),
-#                 nn.Tanh()
-#                 )
-#
-#     def forward(self, z):
-#         img = self.model(z)
-#         img = img.view(img.size(0), *self.img_shape)
-#         return img
-
-
-# class Discriminator(nn.Module):
-#     def __init__(self, img_shape, device):
-#         super(Discriminator, self).__init__()
-#         self.device = device
-#
-#         self.model = nn.Sequential(
-#                 nn.Linear(int(np.prod(img_shape)), 512),
-#                 nn.LeakyReLU(0.2, inplace=True),
-#                 nn.Linear(512, 256),
-#                 nn.LeakyReLU(0.2, inplace=True),
-#                 nn.Linear(256, 1),
-#                 nn.Sigmoid(),
-#                 )
-#
-#     def forward(self, img):
-#         img_flat = img.view(img.size(0), -1)
-#         validity = self.model(img_flat)
-#
-#         return validity
 
 
 class Translator(nn.Module):

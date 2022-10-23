@@ -99,8 +99,8 @@ def run(args):
         gen_layers_type=args.gen_layers,
     ).to(device)
 
-    local_generator.apply(gan_utils.weights_init_normal)
-    local_discriminator.apply(gan_utils.weights_init_normal)
+    # local_generator.apply(gan_utils.weights_init_normal)
+    # local_discriminator.apply(gan_utils.weights_init_normal)
     # translate_noise = True
 
     print(local_generator)
@@ -183,7 +183,7 @@ def run(args):
 
     curr_global_generator = None
 
-    tasks_to_learn = range(len(task_names)) if not args.only_task_0 else {0}
+    tasks_to_learn = task_names if not args.only_task_0 else {0}
     print(f"Tasks to learn: {tasks_to_learn}")
     for task_id in tasks_to_learn:
         print(
@@ -230,31 +230,6 @@ def run(args):
             return None
 
         curr_global_generator.eval()
-        for learned_task_id in range(0, task_id + 1):
-            generations, embeddings = curr_global_generator(
-                torch.randn(args.num_gen_images, curr_global_generator.latent_dim).to(
-                    curr_global_generator.device
-                ),
-                (torch.zeros([args.num_gen_images]) + learned_task_id).to(
-                    curr_global_generator.device
-                ),
-                return_emb=True,
-            )
-            torch.save(
-                embeddings,
-                f"results/{args.experiment_name}/embeddings_task_{learned_task_id}",
-            )
-
-            # fig = gan_utils.generate_images_grid(curr_global_generator, device, torch.zeros([16]) + learned_task_id)
-            # fig.savefig(f"results/{args.experiment_name}/generations_task_{learned_task_id}")
-            wandb.log(
-                {
-                    f"final_generations_task_{learned_task_id}": wandb.Image(
-                        generations
-                    ),
-                }
-            )
-            # plt.close(fig)
 
         torch.save(
             curr_global_generator,
@@ -264,19 +239,6 @@ def run(args):
             curr_global_discriminator,
             f"results/{args.experiment_name}/model{task_id}_curr_discriminator",
         )
-
-        # Plotting results for already learned tasks
-        # if not args.gen_load_pretrained_models:
-        #     vae_utils.plot_results(args.experiment_name, curr_global_decoder, class_table, task_id,
-        #                            translate_noise=translate_noise, same_z=False)
-        #     if args.training_procedure == "multiband":
-        #         vae_utils.plot_results(args.experiment_name, local_vaegan.decoder, class_table, task_id,
-        #                                translate_noise=translate_noise, suffix="_local_vae", same_z=False,
-        #                                starting_point=local_vaegan.starting_point)
-        #         torch.save(local_vaegan, f"results/{args.experiment_name}/model{task_id}_local_vaegan")
-        #
-        #     torch.save(curr_global_decoder, f"results/{args.experiment_name}/model{task_id}_curr_decoder")
-        #     torch.save(curr_global_discriminator, f"results/{args.experiment_name}/model{task_id}_curr_discriminator")
 
         fid_table[task_name] = OrderedDict()
         precision_table[task_name] = OrderedDict()
@@ -306,10 +268,42 @@ def run(args):
                 precision_table[j][task_name] = precision
                 recall_table[j][task_name] = recall
                 print(f"FID task {j}: {fid_result}")
-                wandb.log({f"global_gan_FID_task_{task_id}": fid_result})
+
+                wandb.log({f"global_gan_FID_task_{j}": fid_result})
+                generations, embeddings = curr_global_generator(
+                    torch.randn(
+                        args.num_gen_images, curr_global_generator.latent_dim
+                    ).to(curr_global_generator.device),
+                    (torch.zeros([args.num_gen_images]) + j).to(
+                        curr_global_generator.device
+                    ),
+                    return_emb=True,
+                )
+                torch.save(
+                    embeddings,
+                    f"results/{args.experiment_name}/embeddings_task_{j}",
+                )
+                wandb.log(
+                    {
+                        f"final_generations_task_{j}": wandb.Image(generations),
+                    }
+                )
 
             local_generator = copy.deepcopy(curr_global_generator)
-            local_discriminator = copy.deepcopy(curr_global_discriminator)
+            if args.new_d_every_task:
+                print("Building new discriminator")
+                local_discriminator = models_definition.Discriminator(
+                    img_shape=train_dataset[0][0].shape,
+                    device=device,
+                    is_wgan=True if args.gan_type == "wgan" else False,
+                    num_features=args.d_n_features,
+                    gen_layers_type=args.gen_layers,
+                ).to(device)
+
+            else:
+                print("Using discriminator from previous task")
+                local_discriminator = copy.deepcopy(curr_global_discriminator)
+
     return (
         fid_table,
         task_names,
@@ -423,7 +417,7 @@ def get_args(argv):
         "--score_on_val",
         action="store_true",
         required=False,
-        default=False,
+        default=True,
         help="Compute FID on validation dataset instead of training dataset",
     )
     parser.add_argument("--val_batch_size", type=int, default=250)
@@ -527,8 +521,9 @@ def get_args(argv):
         "--gen_layers",
         type=str,
         default="upsample",
-        choices=["upsample", "transpose"],
-        help="Type of layers in generator network - Upsample + Conv2d | ConvTranspose2d",
+        # choices=["upsample", "transpose", "vae"],
+        choices=["vae"],
+        help="Type of layers in generator network - Upsample + Conv2d | ConvTranspose2d | VAE like (Discriminator like Encoder and Generator like Decoder)",
     )
     parser.add_argument(
         "--only_task_0",
@@ -537,6 +532,14 @@ def get_args(argv):
         action="store_true",
         help="Train only local GAN on first task",
     )
+    parser.add_argument(
+        "--new_d_every_task",
+        dest="new_d_every_task",
+        default=False,
+        action="store_true",
+        help="Train new discriminator every task, if False -> model from previous task will be used",
+    )
+    parser.add_argument("--wandb_project", type=str, default="MultibandGAN")
 
     args = parser.parse_args(argv)
 
@@ -547,7 +550,7 @@ if __name__ == "__main__":
     args = get_args(sys.argv[1:])
 
     wandb.init(
-        project=f"WGAN-GP_task_0_{args.dataset}" if args.only_task_0 else f"MultibandGAN_{args.dataset}",
+        project=f"{args.wandb_project}_{args.dataset}",
         name=f"{args.experiment_name}",
         config=vars(args),
     )

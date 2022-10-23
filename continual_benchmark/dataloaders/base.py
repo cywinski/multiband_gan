@@ -241,7 +241,12 @@ def CIFAR10(dataroot, skip_normalization=False, train_aug=True):
     train_transform = val_transform
     if train_aug:
         train_transform = transforms.Compose([
-            transforms.RandomCrop(32, padding=4),
+            transforms.RandomResizedCrop(32, scale=(0.7, 1.0), ratio=(1.0,1.0)),
+            transforms.ColorJitter(
+            brightness=0.1,
+            contrast=0.1,
+            saturation=0.1,
+            hue=0.1),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             normalize,

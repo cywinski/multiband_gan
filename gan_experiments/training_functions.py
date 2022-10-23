@@ -451,19 +451,19 @@ def train_global_generator(
             if n_prev_examples:
                 wandb.log(
                     {
-                        f"prev_examples_task_{task_id}": wandb.Image(prev_examples),
-                        f"global_generations_task_{task_id}": wandb.Image(
-                            global_generations
-                        ),
+                        # f"prev_examples_task_{task_id}": wandb.Image(prev_examples),
+                        # f"global_generations_task_{task_id}": wandb.Image(
+                        #     global_generations
+                        # ),
                         f"global_g_loss_task_{task_id}": np.round(g_loss.item(), 3),
                     }
                 )
             else:
                 wandb.log(
                     {
-                        f"global_generations_task_{task_id}": wandb.Image(
-                            global_generations
-                        ),
+                        # f"global_generations_task_{task_id}": wandb.Image(
+                        #     global_generations
+                        # ),
                         f"global_g_loss_task_{task_id}": np.round(g_loss.item(), 3),
                     }
                 )
