@@ -72,4 +72,4 @@ def train_multiband_gan(
         print(f"Done training global GAN model on task nr {task_id}")
     torch.cuda.empty_cache()
 
-    return curr_global_generator, curr_global_discriminator
+    return local_generator, curr_global_generator, curr_global_discriminator

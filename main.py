@@ -18,9 +18,6 @@ from utils import count_parameters
 
 
 def run(args):
-    if not os.path.exists("outputs"):
-        os.mkdir("outputs")
-
     train_dataset, val_dataset = dataloaders.base.__dict__[args.dataset](
         args.dataroot, args.skip_normalization, args.train_aug
     )
@@ -168,7 +165,7 @@ def run(args):
         labels_tasks_str = ""
 
     if not args.skip_validation:
-        stats_file_name = f"seed_{args.seed}_batches_{args.num_batches}_labels_{labels_tasks_str}_val_{args.score_on_val}_random_{args.random_split}_shuffle_{args.random_shuffle}_dirichlet_{args.dirichlet}_limit_{args.limit_data}"
+        stats_file_name = f"seed_{args.seed}_batches_{args.num_batches}_labels_{labels_tasks_str}_val_{args.score_on_val}_random_{args.random_split}_shuffle_{args.random_shuffle}_dirichlet_{args.dirichlet}_limit_{args.limit_data}_reverse_{args.reverse}"
         # if args.dataset.lower() != "cern":
         validator = Validator(
             n_classes=num_classes,
@@ -198,6 +195,7 @@ def run(args):
 
         if args.training_procedure == "multiband":
             (
+                curr_local_generator,
                 curr_global_generator,
                 curr_global_discriminator,
             ) = multiband_training.train_multiband_gan(
@@ -230,14 +228,17 @@ def run(args):
             return None
 
         curr_global_generator.eval()
-
+        torch.save(
+            curr_local_generator,
+            os.path.join(args.rpath, args.dataset, args.experiment_name, f'model{task_id}_curr_local_generator')
+        )
         torch.save(
             curr_global_generator,
-            f"results/{args.experiment_name}/model{task_id}_curr_generator",
+            os.path.join(args.rpath, args.dataset, args.experiment_name, f'model{task_id}_curr_global_generator')
         )
         torch.save(
             curr_global_discriminator,
-            f"results/{args.experiment_name}/model{task_id}_curr_discriminator",
+            os.path.join(args.rpath, args.dataset, args.experiment_name, f'model{task_id}_curr_global_discriminator')
         )
 
         fid_table[task_name] = OrderedDict()
@@ -279,10 +280,7 @@ def run(args):
                     ),
                     return_emb=True,
                 )
-                torch.save(
-                    embeddings,
-                    f"results/{args.experiment_name}/embeddings_task_{j}",
-                )
+
                 wandb.log(
                     {
                         f"final_generations_task_{j}": wandb.Image(generations),
@@ -572,9 +570,9 @@ if __name__ == "__main__":
         )
 
     acc_val, acc_test, precision_table, recall_table = {}, {}, {}, {}
-    os.makedirs(os.path.join(args.rpath, args.experiment_name), exist_ok=True)
+    os.makedirs(os.path.join(args.rpath, args.dataset, args.experiment_name), exist_ok=True)
     with open(
-        os.path.join(args.rpath, args.experiment_name, "args.txt"), "w"
+        os.path.join(args.rpath, args.dataset, args.experiment_name, "args.txt"), "w"
     ) as text_file:
         text_file.write(str(args))
     for r in range(args.repeat):
@@ -586,15 +584,15 @@ if __name__ == "__main__":
             recall_table[r],
             fid_local_gan,
         ) = run(args)
-    np.save(os.path.join(args.rpath, args.experiment_name, "fid.npy"), acc_val)
+    np.save(os.path.join(args.rpath, args.dataset, args.experiment_name, "fid.npy"), acc_val)
     np.save(
-        os.path.join(args.rpath, args.experiment_name, "precision.npy"), precision_table
+        os.path.join(args.rpath, args.dataset, args.experiment_name, "precision.npy"), precision_table
     )
-    np.save(os.path.join(args.rpath, args.experiment_name, "recall.npy"), recall_table)
+    np.save(os.path.join(args.rpath, args.dataset, args.experiment_name, "recall.npy"), recall_table)
     np.save(
-        os.path.join(args.rpath, args.experiment_name, "fid_local_gan.npy"),
+        os.path.join(args.rpath, args.dataset, args.experiment_name, "fid_local_gan.npy"),
         fid_local_gan,
     )
 
-    plot_final_results([args.experiment_name], type="fid", fid_local_gan=fid_local_gan)
+    plot_final_results([args.experiment_name], type="fid", fid_local_gan=fid_local_gan, rpath=f"{args.rpath}/{args.dataset}/")
     print(fid_local_gan)

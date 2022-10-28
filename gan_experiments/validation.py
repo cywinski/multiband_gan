@@ -122,12 +122,12 @@ class Validator:
                 np.save(stats_file_path, distribution_orig)
 
             precision, recall = compute_prd_from_embedding(
-                eval_data=distribution_orig[
+                eval_data=distribution_gen,
+                ref_data=distribution_orig[
                     np.random.choice(
                         len(distribution_orig), len(distribution_gen), False
                     )
                 ],
-                ref_data=distribution_gen,
             )
             precision, recall = prd_to_max_f_beta_pair(precision, recall)
             print(f"Precision:{precision},recall: {recall}")
