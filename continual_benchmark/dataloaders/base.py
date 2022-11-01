@@ -1,3 +1,4 @@
+from locale import normalize
 import os
 
 import numpy as np
@@ -23,17 +24,30 @@ class FastCelebA(Dataset):
 
 
 def CelebA(root, skip_normalization=False, train_aug=False, image_size=64, target_type='attr'):
-    transform = transforms.Compose([
+    if skip_normalization:
+        transform = transforms.Compose([
 
-        transforms.Resize(image_size),
-        transforms.RandomHorizontalFlip(),
-        transforms.CenterCrop(image_size),
-        transforms.ToTensor()
-        # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-    ])
+            transforms.Resize(image_size),
+            transforms.RandomHorizontalFlip(),
+            transforms.CenterCrop(image_size),
+            transforms.ToTensor(),
+        ])
+        print("Loading data")
+    else:
+        transform = transforms.Compose([
+
+            transforms.Resize(image_size),
+            transforms.RandomHorizontalFlip(),
+            transforms.CenterCrop(image_size),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        ])
+        print("Loading data")
+        print("Data has been normalized")
+    print(transform)
     dataset = torchvision.datasets.CelebA(root=root, download=True, transform=transform,
                                           target_type=target_type)
-    print("Loading data")
+    
     save_path = f"{root}/fast_celeba"
     if os.path.exists(save_path):
         fast_celeba = torch.load(save_path)
@@ -60,6 +74,7 @@ def MNIST(dataroot, skip_normalization=False, train_aug=False):
             transforms.ToTensor(),
             normalize,
         ])
+        print("Data has been normalized")
 
     train_transform = val_transform
     if train_aug:
@@ -89,22 +104,23 @@ def MNIST(dataroot, skip_normalization=False, train_aug=False):
 def Omniglot(dataroot, skip_normalization=False, train_aug=False):
     # normalize = transforms.Normalize(mean=(0.1307,), std=(0.3081,))  # for 28x28
     # normalize = transforms.Normalize(mean=(0.1000,), std=(0.2752,))  # for 32x32
+    normalize = transforms.Normalize(mean=(0.5,), std=(0.5,))
 
     if skip_normalization:
         val_transform = transforms.Compose([
             transforms.Resize(28),
             transforms.ToTensor(),
-            transforms.Normalize(1, -1)
         ])
     else:
         val_transform = transforms.Compose([
             transforms.Resize(28),
             transforms.ToTensor(),
-            transforms.Normalize(1, -1)
+            normalize
         ])
+        print("Data has been normalized")
 
     train_transform = val_transform
-
+    print(train_transform)
     train_dataset = torchvision.datasets.Omniglot(
         root=dataroot,
         download=True,
@@ -129,13 +145,13 @@ def FashionMNIST(dataroot, skip_normalization=False, train_aug=False):
     if skip_normalization:
         val_transform = transforms.Compose([
             transforms.ToTensor(),
-            # normalize
         ])
     else:
         val_transform = transforms.Compose([
             transforms.ToTensor(),
             normalize,
         ])
+        print("Data has been normalized")
 
     train_transform = val_transform
     if train_aug:
@@ -164,9 +180,10 @@ def FashionMNIST(dataroot, skip_normalization=False, train_aug=False):
 
 
 def DoubleMNIST(dataroot, skip_normalization=False, train_aug=False):
-    normalize = transforms.Normalize(mean=(0.1307,), std=(0.3081,))  # for  28x28
+    # normalize = transforms.Normalize(mean=(0.1307,), std=(0.3081,))  # for  28x28
     # normalize = transforms.Normalize(mean=(0.1000,), std=(0.2752,))  # for 32x32
-
+    normalize = transforms.Normalize(mean=(0.5,), std=(0.5,))
+    
     if skip_normalization:
         val_transform = transforms.Compose([
             transforms.ToTensor(),
@@ -176,6 +193,7 @@ def DoubleMNIST(dataroot, skip_normalization=False, train_aug=False):
             transforms.ToTensor(),
             normalize,
         ])
+        print("Data has been normalized")
 
     train_transform = val_transform
     if train_aug:
@@ -226,7 +244,8 @@ def DoubleMNIST(dataroot, skip_normalization=False, train_aug=False):
 
 
 def CIFAR10(dataroot, skip_normalization=False, train_aug=True):
-    normalize = transforms.Normalize(mean=[0.491, 0.482, 0.447], std=[0.247, 0.243, 0.262])
+    # normalize = transforms.Normalize(mean=[0.491, 0.482, 0.447], std=[0.247, 0.243, 0.262])
+    normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 
     if skip_normalization:
         val_transform = transforms.Compose([
@@ -237,7 +256,8 @@ def CIFAR10(dataroot, skip_normalization=False, train_aug=True):
             transforms.ToTensor(),
             normalize,
         ])
-
+        print("Data has been normalized")
+        
     train_transform = val_transform
     if train_aug:
         train_transform = transforms.Compose([
@@ -251,6 +271,7 @@ def CIFAR10(dataroot, skip_normalization=False, train_aug=True):
             transforms.ToTensor(),
             normalize,
         ])
+    print(train_transform)
 
     train_dataset = torchvision.datasets.CIFAR10(
         root=dataroot,
