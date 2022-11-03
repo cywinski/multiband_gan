@@ -3,6 +3,7 @@ import copy
 import os
 import random
 import sys
+from glob import glob
 from collections import OrderedDict
 
 import torch
@@ -167,6 +168,11 @@ def run(args):
     if not args.skip_validation:
         stats_file_name = f"seed_{args.seed}_batches_{args.num_batches}_labels_{labels_tasks_str}_val_{args.score_on_val}_random_{args.random_split}_shuffle_{args.random_shuffle}_dirichlet_{args.dirichlet}_limit_{args.limit_data}_reverse_{args.reverse}"
         # if args.dataset.lower() != "cern":
+        print("Removing previous stats files: ")
+        for f in glob(os.path.join("results", "orig_stats", f"{args.dataset}_{stats_file_name}*.npy")):
+            print(f)
+            os.remove(f)
+            
         validator = Validator(
             n_classes=num_classes,
             device=device,
