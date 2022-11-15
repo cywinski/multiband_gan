@@ -87,14 +87,11 @@ def run(args):
         device=device,
         translator=translator,
         num_features=args.g_n_features,
-        layers_type=args.gen_layers,
     ).to(device)
     local_discriminator = models_definition.Discriminator(
         img_shape=train_dataset[0][0].shape,
         device=device,
-        is_wgan=True if args.gan_type == "wgan" else False,
         num_features=args.d_n_features,
-        gen_layers_type=args.gen_layers,
     ).to(device)
 
     # local_generator.apply(gan_utils.weights_init_normal)
@@ -217,7 +214,6 @@ def run(args):
                 num_gen_images=args.num_gen_images,
                 local_scheduler_rate=args.local_scheduler_rate,
                 global_scheduler_rate=args.global_scheduler_rate,
-                gan_type=args.gan_type,
                 n_critic_steps=args.n_critic_steps,
                 lambda_gp=args.lambda_gp,
                 batch_size=args.batch_size,
@@ -299,9 +295,7 @@ def run(args):
                 local_discriminator = models_definition.Discriminator(
                     img_shape=train_dataset[0][0].shape,
                     device=device,
-                    is_wgan=True if args.gan_type == "wgan" else False,
                     num_features=args.d_n_features,
-                    gen_layers_type=args.gen_layers,
                 ).to(device)
 
             else:
@@ -421,7 +415,7 @@ def get_args(argv):
         "--score_on_val",
         action="store_true",
         required=False,
-        default=True,
+        default=False,
         help="Compute FID on validation dataset instead of training dataset",
     )
     parser.add_argument("--val_batch_size", type=int, default=250)
@@ -451,13 +445,13 @@ def get_args(argv):
     parser.add_argument(
         "--num_local_epochs",
         type=int,
-        default=100,
+        default=120,
         help="Number of epochs to train local GAN",
     )
     parser.add_argument(
         "--num_global_epochs",
         type=int,
-        default=40,
+        default=200,
         help="Number of epochs to train global GAN",
     )
     parser.add_argument(
@@ -469,7 +463,7 @@ def get_args(argv):
     parser.add_argument("--local_dis_lr", type=float, default=0.0002)
     parser.add_argument("--local_gen_lr", type=float, default=0.0002)
     parser.add_argument("--global_gen_lr", type=float, default=0.001)
-    parser.add_argument("--optim_noise_lr", type=float, default=0.05)
+    parser.add_argument("--optim_noise_lr", type=float, default=0.1)
     parser.add_argument(
         "--num_gen_images",
         type=int,
@@ -478,9 +472,6 @@ def get_args(argv):
     )
     parser.add_argument("--local_scheduler_rate", type=float, default=0.99)
     parser.add_argument("--global_scheduler_rate", type=float, default=0.99)
-    parser.add_argument(
-        "--gan_type", type=str, default="wgan", choices=["wgan", "dcgan"]
-    )
     parser.add_argument(
         "--n_critic_steps",
         type=int,
@@ -497,11 +488,11 @@ def get_args(argv):
     parser.add_argument(
         "--d_n_features",
         type=int,
-        default=512,
+        default=32,
         help="Number of features in discriminator",
     )
     parser.add_argument(
-        "--g_n_features", type=int, default=512, help="Number of features in generator"
+        "--g_n_features", type=int, default=32, help="Number of features in generator"
     )
     parser.add_argument(
         "--local_b1",
@@ -520,14 +511,6 @@ def get_args(argv):
         default=5,
         type=int,
         help="Dimension of task embedding used in torch.nn.Embedding()",
-    )
-    parser.add_argument(
-        "--gen_layers",
-        type=str,
-        default="upsample",
-        # choices=["upsample", "transpose", "vae"],
-        choices=["vae"],
-        help="Type of layers in generator network - Upsample + Conv2d | ConvTranspose2d | VAE like (Discriminator like Encoder and Generator like Decoder)",
     )
     parser.add_argument(
         "--only_task_0",
