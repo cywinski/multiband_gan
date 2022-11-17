@@ -28,6 +28,7 @@ def train_multiband_gan(
     optim_noise_lr,
     local_b1,
     local_b2,
+    warmup_rounds
 ):
     print(f"Started training local GAN model on task nr {task_id}")
     training_functions.train_local(
@@ -60,7 +61,7 @@ def train_multiband_gan(
             task_loader=global_task_loader,
             curr_local_generator=local_generator,
             global_gen_lr=global_gen_lr,
-            warmup_rounds=10,
+            warmup_rounds=warmup_rounds,
             num_epochs_noise_optim=num_epochs_noise_optim,
             num_gen_images=num_gen_images,
             optim_noise_lr=optim_noise_lr,

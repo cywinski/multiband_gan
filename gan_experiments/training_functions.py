@@ -222,7 +222,7 @@ def train_global_generator(
 
     criterion = torch.nn.MSELoss()
 
-    optimizer_g = torch.optim.Adam(global_generator.parameters(), lr=global_gen_lr)
+    optimizer_g = torch.optim.Adam(global_generator.translator.parameters(), lr=global_gen_lr) # at the beginning train only translator
     scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
         optimizer_g, gamma=global_scheduler_rate
     )
@@ -240,6 +240,12 @@ def train_global_generator(
 
     for epoch in range(n_epochs):
         global_generator.train()
+        if epoch == warmup_rounds:
+            optimizer_g = torch.optim.Adam(global_generator.parameters(), lr=global_gen_lr)
+            scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
+                optimizer_g, gamma=global_scheduler_rate
+            )
+        
         for i, batch in enumerate(task_loader):
 
             # Generate data -> (noise, generation) pairs for each previous task

@@ -166,10 +166,14 @@ def run(args):
         stats_file_name = f"seed_{args.seed}_batches_{args.num_batches}_labels_{labels_tasks_str}_val_{args.score_on_val}_random_{args.random_split}_shuffle_{args.random_shuffle}_dirichlet_{args.dirichlet}_limit_{args.limit_data}_reverse_{args.reverse}"
         # if args.dataset.lower() != "cern":
         print("Removing previous stats files: ")
-        for f in glob(os.path.join("results", "orig_stats", f"{args.dataset}_{stats_file_name}*.npy")):
+        for f in glob(
+            os.path.join(
+                "results", "orig_stats", f"{args.dataset}_{stats_file_name}*.npy"
+            )
+        ):
             print(f)
             os.remove(f)
-            
+
         validator = Validator(
             n_classes=num_classes,
             device=device,
@@ -224,6 +228,7 @@ def run(args):
                 optim_noise_lr=args.optim_noise_lr,
                 local_b1=args.local_b1,
                 local_b2=args.local_b2,
+                warmup_rounds=args.global_warmup,
             )
         else:
             print("Wrong training procedure")
@@ -232,15 +237,30 @@ def run(args):
         curr_global_generator.eval()
         torch.save(
             curr_local_generator,
-            os.path.join(args.rpath, args.dataset, args.experiment_name, f'model{task_id}_curr_local_generator')
+            os.path.join(
+                args.rpath,
+                args.dataset,
+                args.experiment_name,
+                f"model{task_id}_curr_local_generator",
+            ),
         )
         torch.save(
             curr_global_generator,
-            os.path.join(args.rpath, args.dataset, args.experiment_name, f'model{task_id}_curr_global_generator')
+            os.path.join(
+                args.rpath,
+                args.dataset,
+                args.experiment_name,
+                f"model{task_id}_curr_global_generator",
+            ),
         )
         torch.save(
             curr_global_discriminator,
-            os.path.join(args.rpath, args.dataset, args.experiment_name, f'model{task_id}_curr_global_discriminator')
+            os.path.join(
+                args.rpath,
+                args.dataset,
+                args.experiment_name,
+                f"model{task_id}_curr_global_discriminator",
+            ),
         )
 
         fid_table[task_name] = OrderedDict()
@@ -526,6 +546,12 @@ def get_args(argv):
         action="store_true",
         help="Train new discriminator every task, if False -> model from previous task will be used",
     )
+    parser.add_argument(
+        "--global_warmup",
+        default=10,
+        type=int,
+        help="Number of epochs for global warmup - only translator training",
+    )
     parser.add_argument("--wandb_project", type=str, default="MultibandGAN")
 
     args = parser.parse_args(argv)
@@ -559,7 +585,9 @@ if __name__ == "__main__":
         )
 
     acc_val, acc_test, precision_table, recall_table = {}, {}, {}, {}
-    os.makedirs(os.path.join(args.rpath, args.dataset, args.experiment_name), exist_ok=True)
+    os.makedirs(
+        os.path.join(args.rpath, args.dataset, args.experiment_name), exist_ok=True
+    )
     with open(
         os.path.join(args.rpath, args.dataset, args.experiment_name, "args.txt"), "w"
     ) as text_file:
@@ -573,15 +601,28 @@ if __name__ == "__main__":
             recall_table[r],
             fid_local_gan,
         ) = run(args)
-    np.save(os.path.join(args.rpath, args.dataset, args.experiment_name, "fid.npy"), acc_val)
     np.save(
-        os.path.join(args.rpath, args.dataset, args.experiment_name, "precision.npy"), precision_table
+        os.path.join(args.rpath, args.dataset, args.experiment_name, "fid.npy"), acc_val
     )
-    np.save(os.path.join(args.rpath, args.dataset, args.experiment_name, "recall.npy"), recall_table)
     np.save(
-        os.path.join(args.rpath, args.dataset, args.experiment_name, "fid_local_gan.npy"),
+        os.path.join(args.rpath, args.dataset, args.experiment_name, "precision.npy"),
+        precision_table,
+    )
+    np.save(
+        os.path.join(args.rpath, args.dataset, args.experiment_name, "recall.npy"),
+        recall_table,
+    )
+    np.save(
+        os.path.join(
+            args.rpath, args.dataset, args.experiment_name, "fid_local_gan.npy"
+        ),
         fid_local_gan,
     )
 
-    plot_final_results([args.experiment_name], type="fid", fid_local_gan=fid_local_gan, rpath=f"{args.rpath}/{args.dataset}/")
+    plot_final_results(
+        [args.experiment_name],
+        type="fid",
+        fid_local_gan=fid_local_gan,
+        rpath=f"{args.rpath}/{args.dataset}/",
+    )
     print(fid_local_gan)
