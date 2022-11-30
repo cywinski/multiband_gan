@@ -36,6 +36,7 @@ class Validator:
             net.load_state_dict(torch.load(model_path))
             net.to(device)
             net.eval()
+            self.model = net
             self.dims = 128 if dataset in ["Omniglot", "DoubleMNIST"] else 84  # 128
             self.score_model_func = net.part_forward
         elif dataset.lower() in [
@@ -50,14 +51,23 @@ class Validator:
 
             self.dims = 2048
             block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[self.dims]
-            model = InceptionV3([block_idx])
+            self.model = InceptionV3([block_idx])
             if score_model_device:
-                model = model.to(score_model_device)
-            model.eval()
-            self.score_model_func = lambda batch: model(batch.to(score_model_device))[0]
+                self.model = self.model.to(score_model_device)
+            self.model.eval()
+            self.score_model_func = lambda batch: self.model(
+                batch.to(score_model_device)
+            )[0]
         self.stats_file_name = f"{stats_file_name}_dims_{self.dims}"
 
-    def calculate_results(self, curr_global_generator, task_id, starting_point=None):
+    def calculate_results(
+        self,
+        curr_global_generator,
+        task_id,
+        batch_size,
+        starting_point=None,
+        calculate_class_dist=True,
+    ):
         curr_global_generator.eval()
 
         test_loader = self.dataloaders[task_id]
@@ -82,60 +92,115 @@ class Validator:
                 precalculated_statistics = True
 
             print("Calculating FID:")
-            for idx, batch in enumerate(test_loader):
-                x = batch[0].to(self.device)
-                y = batch[1]
-                z = torch.randn([len(y), curr_global_generator.latent_dim]).to(
-                    self.device
-                )
-                y = y.sort()[0]
-
-                if starting_point is not None:
-                    task_ids = torch.zeros(len(y)) + starting_point
-                else:
-                    task_ids = torch.zeros(len(y)) + task_id
-
-                example = curr_global_generator(z, task_ids)
-
-                if not precalculated_statistics:
-                    if self.dataset.lower() in ["fashionmnist", "doublemnist"]:
-                        x = x.repeat([1, 3, 1, 1])
+            if not precalculated_statistics:
+                for idx, batch in enumerate(test_loader):
+                    x = batch[0].to(self.device)
+                    y = batch[1]
                     distribution_orig.append(
                         self.score_model_func(x).cpu().detach().numpy()
                     )
-                if self.dataset.lower() in ["fashionmnist", "doublemnist"]:
-                    example = example.repeat([1, 3, 1, 1])
-                distribution_gen.append(self.score_model_func(example))
 
-            distribution_gen = (
-                torch.cat(distribution_gen)
-                .cpu()
-                .detach()
-                .numpy()
-                .reshape(-1, self.dims)
-            )
-            # distribution_gen = np.array(np.concatenate(distribution_gen)).reshape(-1, self.dims)
-            if not precalculated_statistics:
                 distribution_orig = np.array(np.concatenate(distribution_orig)).reshape(
                     -1, self.dims
                 )
                 np.save(stats_file_path, distribution_orig)
 
+            if calculate_class_dist:
+                if self.dataset.lower() != "mnist":
+                    raise NotImplementedError  # Missing classifier for this dataset
+                generated_classes = []
+
+            examples_to_generate = len(distribution_orig)
+            while examples_to_generate:
+                n_batch_to_generate = min(batch_size, examples_to_generate)
+                z = torch.randn(
+                    [n_batch_to_generate, curr_global_generator.latent_dim]
+                ).to(self.device)
+
+                task_ids = torch.zeros(n_batch_to_generate) + task_id
+                example = curr_global_generator(z, task_ids)
+
+                if self.dataset.lower() in ["fashionmnist", "doublemnist"]:
+                    example = example.repeat([1, 3, 1, 1])
+
+                distribution_gen.append(self.score_model_func(example).cpu().detach())
+
+                if calculate_class_dist:
+                    generated_classes.append(
+                        self.model(example).cpu().detach().argmax(1)
+                    )
+
+                examples_to_generate -= n_batch_to_generate
+            generated_classes = [
+                item.item() for sublist in generated_classes for item in sublist
+            ]
+            print("Classified generated classes")
+            distribution_gen = (
+                torch.cat(distribution_gen).numpy().reshape(-1, self.dims)
+            )
+            num_data_for_prd = min(len(distribution_orig), len(distribution_gen))
+
             precision, recall = compute_prd_from_embedding(
-                eval_data=distribution_gen,
+                eval_data=distribution_gen[
+                    np.random.choice(
+                        len(distribution_gen), num_data_for_prd, replace=False
+                    )
+                ],
                 ref_data=distribution_orig[
                     np.random.choice(
-                        len(distribution_orig), len(distribution_gen), False
+                        len(distribution_orig), num_data_for_prd, replace=False
                     )
                 ],
             )
             precision, recall = prd_to_max_f_beta_pair(precision, recall)
             print(f"Precision:{precision},recall: {recall}")
+
             return (
                 calculate_frechet_distance(distribution_gen, distribution_orig),
                 precision,
                 recall,
+                generated_classes,
             )
+
+            #     if not precalculated_statistics:
+            #         if self.dataset.lower() in ["fashionmnist", "doublemnist"]:
+            #             x = x.repeat([1, 3, 1, 1])
+            #         distribution_orig.append(
+            #             self.score_model_func(x).cpu().detach().numpy()
+            #         )
+            #     if self.dataset.lower() in ["fashionmnist", "doublemnist"]:
+            #         example = example.repeat([1, 3, 1, 1])
+            #     distribution_gen.append(self.score_model_func(example))
+
+            # distribution_gen = (
+            #     torch.cat(distribution_gen)
+            #     .cpu()
+            #     .detach()
+            #     .numpy()
+            #     .reshape(-1, self.dims)
+            # )
+            # # distribution_gen = np.array(np.concatenate(distribution_gen)).reshape(-1, self.dims)
+            # if not precalculated_statistics:
+            #     distribution_orig = np.array(np.concatenate(distribution_orig)).reshape(
+            #         -1, self.dims
+            #     )
+            #     np.save(stats_file_path, distribution_orig)
+
+            # precision, recall = compute_prd_from_embedding(
+            #     eval_data=distribution_gen,
+            #     ref_data=distribution_orig[
+            #         np.random.choice(
+            #             len(distribution_orig), len(distribution_gen), False
+            #         )
+            #     ],
+            # )
+            # precision, recall = prd_to_max_f_beta_pair(precision, recall)
+            # print(f"Precision:{precision},recall: {recall}")
+            # return (
+            #     calculate_frechet_distance(distribution_gen, distribution_orig),
+            #     precision,
+            #     recall,
+            # )
 
     # def compute_results_from_examples(self, args, generations, task_id, join_tasks=False):
     #     distribution_orig = []

@@ -241,6 +241,7 @@ def train_global_generator(
     for epoch in range(n_epochs):
         global_generator.train()
         if epoch == warmup_rounds:
+            print("End of warmup")
             optimizer_g = torch.optim.Adam(global_generator.parameters(), lr=global_gen_lr)
             scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
                 optimizer_g, gamma=global_scheduler_rate

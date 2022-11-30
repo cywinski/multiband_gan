@@ -4,8 +4,8 @@ import os
 import random
 import sys
 from glob import glob
-from collections import OrderedDict
-
+from collections import OrderedDict, Counter
+import numpy as np
 import torch
 import torch.utils.data as data
 
@@ -273,26 +273,55 @@ def run(args):
             if (args.training_procedure == "multiband") and (
                 not args.gen_load_pretrained_models
             ):
-                fid_result, precision, recall = validator.calculate_results(
+                (
+                    fid_result,
+                    precision,
+                    recall,
+                    generated_classes,
+                ) = validator.calculate_results(
                     curr_global_generator=curr_global_generator,
                     task_id=task_id,
+                    calculate_class_dist=args.dataset.lower() == "mnist",
+                    batch_size=args.val_batch_size
                 )
+
+                # print(f"Generated classes: {generated_classes}")
 
                 fid_local_gan[task_id] = fid_result
                 print(f"FID local GAN: {fid_result}")
                 wandb.log({f"local_gan_FID_task_{task_id}": fid_result})
+                # data_df = [[c] for c in generated_classes]
+                # table = wandb.Table(data=data_df, columns=["generated_classes"])
+                # wandb.log({f'local_gan_generated_classes_task_{task_id}': wandb.plot.histogram(table, "generated_classes")})
+                wandb.log({f"local_gan_generated_classes_task_{task_id}": wandb.Histogram(np_histogram=np.histogram(generated_classes, bins=num_classes))})
+                print(f"Generated classes: {Counter(generated_classes)}")
+                
             for j in range(task_id + 1):
                 val_name = task_names[j]
                 print("validation split name:", val_name)
-                fid_result, precision, recall = validator.calculate_results(
-                    curr_global_generator=curr_global_generator, task_id=j
+                (
+                    fid_result,
+                    precision,
+                    recall,
+                    generated_classes,
+                ) = validator.calculate_results(
+                    curr_global_generator=curr_global_generator,
+                    task_id=j,
+                    calculate_class_dist=args.dataset.lower() == "mnist",
+                    batch_size=args.val_batch_size
                 )
+                # print(f"Generated classes: {generated_classes}")
                 fid_table[j][task_name] = fid_result
                 precision_table[j][task_name] = precision
                 recall_table[j][task_name] = recall
                 print(f"FID task {j}: {fid_result}")
 
                 wandb.log({f"global_gan_FID_task_{j}": fid_result})
+                # data_df = [[c] for c in generated_classes]
+                # table = wandb.Table(data=data_df, columns=["scores"])
+                # wandb.log({f"global_gan_generated_classes_task_{j}": wandb.plot.histogram(table, "scores")})
+                wandb.log({f"global_gan_generated_classes_task_{j}": wandb.Histogram(np_histogram=np.histogram(generated_classes, bins=num_classes))})
+                print(f"Generated classes: {Counter(generated_classes)}")
                 generations, embeddings = curr_global_generator(
                     torch.randn(
                         args.num_gen_images, curr_global_generator.latent_dim
