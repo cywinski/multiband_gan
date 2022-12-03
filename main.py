@@ -13,7 +13,7 @@ import continual_benchmark.dataloaders as dataloaders
 import continual_benchmark.dataloaders.base
 from continual_benchmark.dataloaders.datasetGen import data_split
 from gan_experiments import models_definition, gan_utils, multiband_training
-from gan_experiments.validation import Validator
+from gan_experiments.validation import Validator, CERN_Validator
 from visualise import *
 from utils import count_parameters
 
@@ -164,7 +164,7 @@ def run(args):
 
     if not args.skip_validation:
         stats_file_name = f"seed_{args.seed}_batches_{args.num_batches}_labels_{labels_tasks_str}_val_{args.score_on_val}_random_{args.random_split}_shuffle_{args.random_shuffle}_dirichlet_{args.dirichlet}_limit_{args.limit_data}_reverse_{args.reverse}"
-        # if args.dataset.lower() != "cern":
+        
         print("Removing previous stats files: ")
         for f in glob(
             os.path.join(
@@ -173,17 +173,18 @@ def run(args):
         ):
             print(f)
             os.remove(f)
-
-        validator = Validator(
-            n_classes=num_classes,
-            device=device,
-            dataset=args.dataset,
-            stats_file_name=stats_file_name,
-            score_model_device=args.score_model_device,
-            dataloaders=val_loaders,
-        )
-        # else:
-        #     validator = CERN_Validator(dataloaders=val_loaders, stats_file_name=stats_file_name, device=device)
+            
+        if args.dataset.lower() != "cern":
+            validator = Validator(
+                n_classes=num_classes,
+                device=device,
+                dataset=args.dataset,
+                stats_file_name=stats_file_name,
+                score_model_device=args.score_model_device,
+                dataloaders=val_loaders,
+            )
+        else:
+            validator = CERN_Validator(dataloaders=val_loaders, stats_file_name=stats_file_name, device=device)
 
     curr_global_generator = None
 
@@ -293,7 +294,7 @@ def run(args):
                 # data_df = [[c] for c in generated_classes]
                 # table = wandb.Table(data=data_df, columns=["generated_classes"])
                 # wandb.log({f'local_gan_generated_classes_task_{task_id}': wandb.plot.histogram(table, "generated_classes")})
-                wandb.log({f"local_gan_generated_classes_task_{task_id}": wandb.Histogram(np_histogram=np.histogram(generated_classes, bins=num_classes))})
+                wandb.log({f"local_gan_generated_classes_task_{task_id}": wandb.Histogram(generated_classes, num_bins=num_classes)})
                 print(f"Generated classes: {Counter(generated_classes)}")
                 
             for j in range(task_id + 1):
@@ -320,7 +321,7 @@ def run(args):
                 # data_df = [[c] for c in generated_classes]
                 # table = wandb.Table(data=data_df, columns=["scores"])
                 # wandb.log({f"global_gan_generated_classes_task_{j}": wandb.plot.histogram(table, "scores")})
-                wandb.log({f"global_gan_generated_classes_task_{j}": wandb.Histogram(np_histogram=np.histogram(generated_classes, bins=num_classes))})
+                wandb.log({f"global_gan_generated_classes_task_{j}": wandb.Histogram(generated_classes, num_bins=num_classes)})
                 print(f"Generated classes: {Counter(generated_classes)}")
                 generations, embeddings = curr_global_generator(
                     torch.randn(

@@ -188,6 +188,50 @@ class Generator(nn.Module):
                     bn=False,
                 ),
             )
+            
+        elif img_shape[1] == 44:
+            self.scaler = img_shape[1] // 8
+            self.l1 = nn.Linear(
+                latent_dim, num_features * self.scaler * self.scaler * self.scaler
+            )
+            self.conv_blocks = nn.Sequential(
+                # in: 5x5
+                nn.BatchNorm2d(num_features * self.scaler),
+                *generator_block(
+                    num_features * self.scaler,
+                    num_features * 4,
+                    kernel_size=(4, 4),
+                    stride=(2, 2),
+                    padding=1,
+                    bias=False,
+                ),
+                *generator_block(
+                    num_features * 4,
+                    num_features * 2,
+                    kernel_size=(4, 4),
+                    stride=(2, 2),
+                    padding=0,
+                    bias=False,
+                ),
+                *generator_block(
+                    num_features * 2,
+                    num_features,
+                    kernel_size=(4, 4),
+                    stride=(2, 2),
+                    padding=1,
+                    bias=False,
+                ),
+                *generator_block(
+                    num_features,
+                    img_shape[0],
+                    kernel_size=(3, 3),
+                    stride=(1, 1),
+                    padding=1,
+                    bias=False,
+                    act_fun=nn.Tanh(),
+                    bn=False,
+                ),
+            )
 
     def forward(self, z, task_id, return_emb=False):
         # Noise as input to translator, embedding as output
@@ -216,7 +260,6 @@ class Discriminator(nn.Module):
         super(Discriminator, self).__init__()
         self.img_shape = img_shape
         self.device = device
-
         def discriminator_block(
             in_filters,
             out_filters,
@@ -394,6 +437,54 @@ class Discriminator(nn.Module):
                 # size: 3x3
             )
             self.conv_out_size = 3
+            last_layers = [
+                nn.Linear(num_features * 4 * self.conv_out_size * self.conv_out_size, 1)
+            ]
+        elif img_shape[1] == 44:
+            self.model = nn.Sequential(
+                # in: 44x44
+                *discriminator_block(
+                    img_shape[0],
+                    num_features,
+                    kernel_size=(4, 4),
+                    stride=(2, 2),
+                    padding=1,
+                    bias=False,
+                    output_img_size=22,
+                ),
+                # size: 22x22
+                *discriminator_block(
+                    num_features,
+                    num_features,
+                    kernel_size=(4, 4),
+                    stride=(2, 2),
+                    padding=1,
+                    bias=False,
+                    output_img_size=11,
+                ),
+                # size: 11x11
+                *discriminator_block(
+                    num_features,
+                    num_features * 2,
+                    kernel_size=(4, 4),
+                    stride=(2, 2),
+                    padding=1,
+                    bias=False,
+                    output_img_size=5,
+                ),
+                # size: 5x5
+                *discriminator_block(
+                    num_features * 2,
+                    num_features * 4,
+                    kernel_size=(4, 4),
+                    stride=(2, 2),
+                    padding=1,
+                    bias=False,
+                    output_img_size=2,
+                ),
+            )
+            # size: 2x2
+            self.conv_out_size = 2
             last_layers = [
                 nn.Linear(num_features * 4 * self.conv_out_size * self.conv_out_size, 1)
             ]
