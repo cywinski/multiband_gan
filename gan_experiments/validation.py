@@ -26,7 +26,7 @@ class Validator:
 
         print("Preparing validator")
         if dataset in ["MNIST", "Omniglot"]:  # , "DoubleMNIST"]:
-            if dataset in ["Omniglot"]:
+            if dataset == "Omniglot":
                 from gan_experiments.evaluation_models.lenet_Omniglot import Model
             # elif dataset == "DoubleMNIST":
             #     from gan_experiments.evaluation_models.lenet_DoubleMNIST import Model
@@ -38,7 +38,7 @@ class Validator:
             net.to(device)
             net.eval()
             self.model = net
-            self.dims = 128 if dataset in ["Omniglot", "DoubleMNIST"] else 84  # 128
+            self.dims = 128 if dataset  == "Omniglot" else 84
             self.score_model_func = net.part_forward
         elif dataset.lower() in [
             "celeba",
@@ -52,11 +52,11 @@ class Validator:
 
             self.dims = 2048
             block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[self.dims]
-            self.model = InceptionV3([block_idx])
+            model = InceptionV3([block_idx])
             if score_model_device:
-                self.model = self.model.to(score_model_device)
-            self.model.eval()
-            self.score_model_func = lambda batch: self.model(
+                model = model.to(score_model_device)
+            model.eval()
+            self.score_model_func = lambda batch: model(
                 batch.to(score_model_device)
             )[0]
         self.stats_file_name = f"{stats_file_name}_dims_{self.dims}"
@@ -97,6 +97,9 @@ class Validator:
                 for idx, batch in enumerate(test_loader):
                     x = batch[0].to(self.device)
                     y = batch[1]
+                    
+                    if self.dataset.lower() in ["fashionmnist", "doublemnist"]:
+                        x = x.repeat([1, 3, 1, 1])
                     distribution_orig.append(
                         self.score_model_func(x).cpu().detach().numpy()
                     )
@@ -109,7 +112,7 @@ class Validator:
             if calculate_class_dist:
                 if self.dataset.lower() != "mnist":
                     raise NotImplementedError  # Missing classifier for this dataset
-                generated_classes = []
+            generated_classes = []
 
             examples_to_generate = len(distribution_orig)
             while examples_to_generate:
@@ -132,9 +135,10 @@ class Validator:
                     )
 
                 examples_to_generate -= n_batch_to_generate
-            generated_classes = [
-                item.item() for sublist in generated_classes for item in sublist
-            ]
+            if calculate_class_dist:
+                generated_classes = [
+                    item.item() for sublist in generated_classes for item in sublist
+                ]
             print("Classified generated classes")
             distribution_gen = (
                 torch.cat(distribution_gen).numpy().reshape(-1, self.dims)

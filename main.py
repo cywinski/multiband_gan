@@ -294,8 +294,9 @@ def run(args):
                 # data_df = [[c] for c in generated_classes]
                 # table = wandb.Table(data=data_df, columns=["generated_classes"])
                 # wandb.log({f'local_gan_generated_classes_task_{task_id}': wandb.plot.histogram(table, "generated_classes")})
-                wandb.log({f"local_gan_generated_classes_task_{task_id}": wandb.Histogram(generated_classes, num_bins=num_classes)})
-                print(f"Generated classes: {Counter(generated_classes)}")
+                if len(generated_classes):
+                    wandb.log({f"local_gan_generated_classes_task_{task_id}": wandb.Histogram(generated_classes, num_bins=num_classes)})
+                    print(f"Generated classes: {Counter(generated_classes)}")
                 
             for j in range(task_id + 1):
                 val_name = task_names[j]
@@ -321,8 +322,9 @@ def run(args):
                 # data_df = [[c] for c in generated_classes]
                 # table = wandb.Table(data=data_df, columns=["scores"])
                 # wandb.log({f"global_gan_generated_classes_task_{j}": wandb.plot.histogram(table, "scores")})
-                wandb.log({f"global_gan_generated_classes_task_{j}": wandb.Histogram(generated_classes, num_bins=num_classes)})
-                print(f"Generated classes: {Counter(generated_classes)}")
+                if len(generated_classes):
+                    wandb.log({f"global_gan_generated_classes_task_{j}": wandb.Histogram(generated_classes, num_bins=num_classes)})
+                    print(f"Generated classes: {Counter(generated_classes)}")
                 generations, embeddings = curr_global_generator(
                     torch.randn(
                         args.num_gen_images, curr_global_generator.latent_dim
