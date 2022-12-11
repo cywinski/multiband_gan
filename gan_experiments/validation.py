@@ -92,7 +92,7 @@ class Validator:
                 distribution_orig = np.load(stats_file_path)
                 precalculated_statistics = True
 
-            print("Calculating FID:")
+            print("Calculating FID...")
             if not precalculated_statistics:
                 for idx, batch in enumerate(test_loader):
                     x = batch[0].to(self.device)
@@ -103,6 +103,8 @@ class Validator:
                     distribution_orig.append(
                         self.score_model_func(x).cpu().detach().numpy()
                     )
+                    
+                    print(f"{idx}/{len(test_loader)} original distribution")
 
                 distribution_orig = np.array(np.concatenate(distribution_orig)).reshape(
                     -1, self.dims
@@ -135,6 +137,8 @@ class Validator:
                     )
 
                 examples_to_generate -= n_batch_to_generate
+                print(f"examples_to_generate: {examples_to_generate}")
+                
             if calculate_class_dist:
                 generated_classes = [
                     item.item() for sublist in generated_classes for item in sublist
@@ -321,7 +325,7 @@ class CERN_Validator:
                 distribution_orig = np.load(stats_file_path)
                 precalculated_statistics = True
 
-            print("Calculating CERN scores:")
+            print("Calculating CERN scores...")
             for idx, batch in enumerate(test_loader):
                 x = batch[0].to(self.device)
                 y = batch[1]
@@ -347,6 +351,8 @@ class CERN_Validator:
                         example.cpu().detach().numpy().squeeze(1)
                     )
                 )
+                
+                print(f"{idx}/{len(test_loader)}")
 
             distribution_gen = np.hstack(distribution_gen)
             # distribution_gen = np.array(np.concatenate(distribution_gen)).reshape(-1, self.dims)

@@ -75,6 +75,8 @@ def predict(seed, dataset, task_id, n_imgs_to_generate, scenario, noise=None):
 
 
 def update_scenarios(dataset):
+    global BASE_LATENT
+    BASE_LATENT = None
     dataset_name = dataset.lower()
     if dataset_name in ["mnist", "fashionmnist"]:
         return gr.update(
@@ -114,6 +116,8 @@ def update_scenarios(dataset):
 
 
 def update_task_ids(scenario):
+    global BASE_LATENT
+    BASE_LATENT = None
     if scenario:
         scenario_dict = SCENARIOS_MAP[scenario]
         return gr.update(
