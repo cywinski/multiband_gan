@@ -256,10 +256,14 @@ class Discriminator(nn.Module):
         img_shape,
         device,
         num_features,
+        num_embeddings=0,
+        embedding_dim=0
     ):
         super(Discriminator, self).__init__()
         self.img_shape = img_shape
         self.device = device
+        self.num_embeddings = num_embeddings
+        self.embedding_dim = embedding_dim
         def discriminator_block(
             in_filters,
             out_filters,
@@ -330,7 +334,7 @@ class Discriminator(nn.Module):
             # size: 3x3
             self.conv_out_size = 3
             last_layers = [
-                nn.Linear(num_features * self.conv_out_size * self.conv_out_size, 1)
+                nn.Linear(num_features * self.conv_out_size * self.conv_out_size + self.embedding_dim, 1)
             ]
 
         elif img_shape[1] == 32:
@@ -389,7 +393,7 @@ class Discriminator(nn.Module):
             )
             self.conv_out_size = 2
             last_layers = [
-                nn.Linear(num_features * 8 * self.conv_out_size * self.conv_out_size, 1)
+                nn.Linear(num_features * 8 * self.conv_out_size * self.conv_out_size + self.embedding_dim, 1)
             ]
 
         elif img_shape[1] == 64:
@@ -438,7 +442,7 @@ class Discriminator(nn.Module):
             )
             self.conv_out_size = 3
             last_layers = [
-                nn.Linear(num_features * 4 * self.conv_out_size * self.conv_out_size, 1)
+                nn.Linear(num_features * 4 * self.conv_out_size * self.conv_out_size + self.embedding_dim, 1)
             ]
         elif img_shape[1] == 44:
             self.model = nn.Sequential(
@@ -486,39 +490,48 @@ class Discriminator(nn.Module):
             # size: 2x2
             self.conv_out_size = 2
             last_layers = [
-                nn.Linear(num_features * 4 * self.conv_out_size * self.conv_out_size, 1)
+                nn.Linear(num_features * 4 * self.conv_out_size * self.conv_out_size + self.embedding_dim, 1)
             ]
 
         self.adv_layer = nn.Sequential(*last_layers)
+        
+        if self.num_embeddings and self.embedding_dim:
+            self.task_embedding = nn.Embedding(
+                num_embeddings=num_embeddings, embedding_dim=embedding_dim
+            )
 
-    def forward(self, img):
+    def forward(self, img, task_id=None):
         out = self.model(img)
         out = out.view(out.shape[0], -1)
-        validity = self.adv_layer(out)
+        if task_id is not None:
+            task_id = self.task_embedding(task_id.long().to(self.device))
+            x = torch.cat([out, task_id], dim=1)
+            validity = self.adv_layer(x)
+        else:
+            validity = self.adv_layer(out)
 
         return validity
 
 
 class Translator(nn.Module):
-    def __init__(self, latent_size, device, num_tasks, task_embedding_dim=5):
+    def __init__(self, latent_size, device, num_embeddings, embedding_dim):
         super().__init__()
         self.device = device
         self.latent_size = latent_size
-        self.num_tasks = num_tasks
-        self.task_embedding_dim = task_embedding_dim
+        self.num_embeddings = num_embeddings
+        self.embedding_dim = embedding_dim
 
         self.fc = nn.Sequential(
-            nn.Linear(latent_size + self.task_embedding_dim, latent_size * 4),
+            nn.Linear(latent_size + self.embedding_dim, latent_size * 4),
             nn.LeakyReLU(0.2),
             nn.Linear(latent_size * 4, latent_size),
         )
 
         self.task_embedding = nn.Embedding(
-            num_embeddings=self.num_tasks, embedding_dim=self.task_embedding_dim
+            num_embeddings=self.num_embeddings, embedding_dim=self.embedding_dim
         )
 
     def forward(self, x, task_id):
-        # task_id = F.one_hot(task_id.long(), num_classes=self.num_tasks).to(self.device)
         task_id = self.task_embedding(task_id.long().to(self.device))
         x = torch.cat([x, task_id], dim=1)
         out = self.fc(x)

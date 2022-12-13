@@ -28,7 +28,8 @@ def train_multiband_gan(
     optim_noise_lr,
     local_b1,
     local_b2,
-    warmup_rounds
+    warmup_rounds,
+    class_cond=False
 ):
     print(f"Started training local GAN model on task nr {task_id}")
     training_functions.train_local(
@@ -45,6 +46,7 @@ def train_multiband_gan(
         lambda_gp=lambda_gp,
         b1=local_b1,
         b2=local_b2,
+        class_cond=class_cond
     )
     print(f"Done training local GAN model on task nr {task_id}")
     curr_global_discriminator = copy.deepcopy(local_discriminator)
@@ -66,6 +68,7 @@ def train_multiband_gan(
             num_gen_images=num_gen_images,
             optim_noise_lr=optim_noise_lr,
             global_scheduler_rate=global_scheduler_rate,
+            class_cond=class_cond
         )
 
         print(f"Done training global GAN model on task nr {task_id}")
