@@ -163,13 +163,17 @@ def train_local_wgan_gp(
             if not class_cond:
                 task_ids = (torch.zeros([num_gen_images]) + task_id).to(local_generator.device)
             else:
-                unique_classes = torch.unique(task_ids.cpu()).numpy()
+                unique_classes = np.sort(torch.unique(task_ids.cpu()).numpy())
                 task_ids = torch.cat([(torch.zeros([num_gen_images//len(unique_classes)]) + c) for c in unique_classes]).to(local_generator.device)
+                if task_ids.shape[0] < fixed_noise.shape[0]:
+                    task_ids = torch.cat([task_ids, (torch.zeros([fixed_noise.shape[0]-task_ids.shape[0]]) + unique_classes[0]).to(global_generator.device)])
             generations = local_generator(
                 fixed_noise,
                 task_ids
             )
             wandb.log({f"local_generations_task_{task_id}": wandb.Image(generations)})
+            wandb.log({f"real_imgs_task_{task_id}": wandb.Image(real_imgs)})            
+
 
         scheduler_g.step()
         scheduler_d.step()

@@ -505,10 +505,9 @@ class Discriminator(nn.Module):
         out = out.view(out.shape[0], -1)
         if task_id is not None:
             task_id = self.task_embedding(task_id.long().to(self.device))
-            x = torch.cat([out, task_id], dim=1)
-            validity = self.adv_layer(x)
-        else:
-            validity = self.adv_layer(out)
+            out = torch.cat([out, task_id], dim=1)
+
+        validity = self.adv_layer(out)
 
         return validity
 

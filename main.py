@@ -346,20 +346,20 @@ def run(args):
                     }
                 )
 
-            local_generator = copy.deepcopy(curr_global_generator)
-            if args.new_d_every_task:
-                print("Building new discriminator")
-                local_discriminator = models_definition.Discriminator(
-                    img_shape=train_dataset[0][0].shape,
-                    device=device,
-                    num_features=args.d_n_features,
-                    num_embeddings=0 if not args.class_cond else num_classes,
-                    embedding_dim=0 if not args.class_cond else num_classes,
-                ).to(device)
+        local_generator = copy.deepcopy(curr_global_generator)
+        if args.new_d_every_task:
+            print("Building new discriminator")
+            local_discriminator = models_definition.Discriminator(
+                img_shape=train_dataset[0][0].shape,
+                device=device,
+                num_features=args.d_n_features,
+                num_embeddings=0 if not args.class_cond else num_classes,
+                embedding_dim=0 if not args.class_cond else num_classes,
+            ).to(device)
 
-            else:
-                print("Using discriminator from previous task")
-                local_discriminator = copy.deepcopy(curr_global_discriminator)
+        else:
+            print("Using discriminator from previous task")
+            local_discriminator = copy.deepcopy(curr_global_discriminator)
 
     return (
         fid_table,
