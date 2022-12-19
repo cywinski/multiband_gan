@@ -166,13 +166,12 @@ def train_local_wgan_gp(
                 unique_classes = np.sort(torch.unique(task_ids.cpu()).numpy())
                 task_ids = torch.cat([(torch.zeros([num_gen_images//len(unique_classes)]) + c) for c in unique_classes]).to(local_generator.device)
                 if task_ids.shape[0] < fixed_noise.shape[0]:
-                    task_ids = torch.cat([task_ids, (torch.zeros([fixed_noise.shape[0]-task_ids.shape[0]]) + unique_classes[0]).to(global_generator.device)])
+                    task_ids = torch.cat([task_ids, (torch.zeros([fixed_noise.shape[0]-task_ids.shape[0]]) + unique_classes[0]).to(local_generator.device)])
             generations = local_generator(
                 fixed_noise,
                 task_ids
             )
             wandb.log({f"local_generations_task_{task_id}": wandb.Image(generations)})
-            wandb.log({f"real_imgs_task_{task_id}": wandb.Image(real_imgs)})            
 
 
         scheduler_g.step()
@@ -351,10 +350,12 @@ def train_global_generator(
                 if not class_cond:
                     task_ids = (torch.zeros([num_gen_images]) + learned_task_id).to(global_generator.device)
                 else:
-                    unique_classes = torch.unique(task_ids_concat).cpu().numpy()
-                    task_ids = torch.cat([(torch.zeros([num_gen_images//len(unique_classes)]) + c) for c in unique_classes]).to(global_generator.device)
+                    n_classes_per_task = torch.unique(curr_labels).shape[0]
+                    classes_to_generate = [c for c in range(learned_task_id*2, (learned_task_id*2)+n_classes_per_task)]
+                    task_ids = torch.cat([(torch.zeros([fixed_noise.shape[0]//len(classes_to_generate)]) + c) for c in classes_to_generate]).to(global_generator.device)
                     if task_ids.shape[0] < fixed_noise.shape[0]:
-                        task_ids = torch.cat([task_ids, (torch.zeros([fixed_noise.shape[0]-task_ids.shape[0]]) + unique_classes[0]).to(global_generator.device)])
+                        task_ids = torch.cat([task_ids, (torch.zeros([fixed_noise.shape[0]-task_ids.shape[0]]) + classes_to_generate[0]).to(global_generator.device)])
+
                 generations = global_generator(
                     fixed_noise,
                     task_ids,

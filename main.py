@@ -263,6 +263,7 @@ def run(args):
                 f"model{task_id}_curr_global_discriminator",
             ),
         )
+        print("Models saved")
 
         fid_table[task_name] = OrderedDict()
         precision_table[task_name] = OrderedDict()
@@ -280,7 +281,7 @@ def run(args):
                     recall,
                     generated_classes,
                 ) = validator.calculate_results(
-                    curr_global_generator=curr_global_generator,
+                    curr_global_generator=curr_local_generator,
                     task_id=task_id,
                     calculate_class_dist=args.dataset.lower() == "mnist",
                     batch_size=args.val_batch_size,
@@ -330,19 +331,30 @@ def run(args):
                         }
                     )
                     print(f"Generated classes: {Counter(generated_classes)}")
-                generations, embeddings = curr_global_generator(
-                    torch.randn(
-                        args.num_gen_images, curr_global_generator.latent_dim
-                    ).to(curr_global_generator.device),
-                    (torch.zeros([args.num_gen_images]) + j*2).to(
-                        curr_global_generator.device
-                    ),
-                    return_emb=True,
-                )
+                    
+                if args.class_cond:
+                    n_classes_per_task = num_classes // num_batches
+                    classes_to_generate = [c for c in range(j*2, (j*2)+n_classes_per_task)]
+                    task_ids = torch.cat([(torch.zeros([args.num_gen_images//len(classes_to_generate)]) + c) for c in classes_to_generate]).to(curr_global_generator.device)
+                    generations = curr_global_generator(
+                        torch.randn(
+                            len(task_ids), curr_global_generator.latent_dim
+                        ).to(curr_global_generator.device),
+                        task_ids
+                    )
+                else:
+                    generations = curr_global_generator(
+                        torch.randn(
+                            args.num_gen_images, curr_global_generator.latent_dim
+                        ).to(curr_global_generator.device),
+                        (torch.zeros([args.num_gen_images]) + j).to(
+                            curr_global_generator.device
+                        )
+                    )
 
                 wandb.log(
                     {
-                        f"final_generations_task_{j*2}": wandb.Image(generations),
+                        f"final_generations_task_{j}": wandb.Image(generations),
                     }
                 )
 

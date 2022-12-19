@@ -264,6 +264,8 @@ class Discriminator(nn.Module):
         self.device = device
         self.num_embeddings = num_embeddings
         self.embedding_dim = embedding_dim
+        self.is_conditional = self.num_embeddings and self.embedding_dim
+        
         def discriminator_block(
             in_filters,
             out_filters,
@@ -297,12 +299,24 @@ class Discriminator(nn.Module):
             block.append(nn.LeakyReLU(0.2, inplace=True))
 
             return block
+        
+        if self.is_conditional:
+            self.task_embedding = nn.Embedding(
+                num_embeddings=num_embeddings, embedding_dim=embedding_dim
+            )
+            self.task_embedding_l = nn.Sequential(
+                nn.Linear(
+                    embedding_dim, 400
+                ),
+                nn.LeakyReLU(0.2),
+                nn.Linear(400, img_shape[1]**2)
+            )
 
         if img_shape[1] == 28:
             self.model = nn.Sequential(
                 # in: 28x28
                 *discriminator_block(
-                    img_shape[0],
+                    img_shape[0]+1 if self.is_conditional else img_shape[0],
                     num_features,
                     kernel_size=(4, 4),
                     stride=(2, 2),
@@ -334,14 +348,14 @@ class Discriminator(nn.Module):
             # size: 3x3
             self.conv_out_size = 3
             last_layers = [
-                nn.Linear(num_features * self.conv_out_size * self.conv_out_size + self.embedding_dim, 1)
+                nn.Linear(num_features * self.conv_out_size * self.conv_out_size, 1)
             ]
 
         elif img_shape[1] == 32:
             self.model = nn.Sequential(
                 # in: 32x32
                 *discriminator_block(
-                    img_shape[0],
+                    img_shape[0]+1 if self.is_conditional else img_shape[0],
                     num_features,
                     kernel_size=(4, 4),
                     stride=(2, 2),
@@ -393,14 +407,14 @@ class Discriminator(nn.Module):
             )
             self.conv_out_size = 2
             last_layers = [
-                nn.Linear(num_features * 8 * self.conv_out_size * self.conv_out_size + self.embedding_dim, 1)
+                nn.Linear(num_features * 8 * self.conv_out_size * self.conv_out_size, 1)
             ]
 
         elif img_shape[1] == 64:
             self.model = nn.Sequential(
                 # in: 64x64
                 *discriminator_block(
-                    img_shape[0],
+                    img_shape[0]+1 if self.is_conditional else img_shape[0],
                     num_features,
                     kernel_size=(5, 5),
                     stride=(2, 2),
@@ -442,13 +456,13 @@ class Discriminator(nn.Module):
             )
             self.conv_out_size = 3
             last_layers = [
-                nn.Linear(num_features * 4 * self.conv_out_size * self.conv_out_size + self.embedding_dim, 1)
+                nn.Linear(num_features * 4 * self.conv_out_size * self.conv_out_size, 1)
             ]
         elif img_shape[1] == 44:
             self.model = nn.Sequential(
                 # in: 44x44
                 *discriminator_block(
-                    img_shape[0],
+                    img_shape[0]+1 if self.is_conditional else img_shape[0],
                     num_features,
                     kernel_size=(4, 4),
                     stride=(2, 2),
@@ -490,23 +504,21 @@ class Discriminator(nn.Module):
             # size: 2x2
             self.conv_out_size = 2
             last_layers = [
-                nn.Linear(num_features * 4 * self.conv_out_size * self.conv_out_size + self.embedding_dim, 1)
+                nn.Linear(num_features * 4 * self.conv_out_size * self.conv_out_size, 1)
             ]
 
         self.adv_layer = nn.Sequential(*last_layers)
-        
-        if self.num_embeddings and self.embedding_dim:
-            self.task_embedding = nn.Embedding(
-                num_embeddings=num_embeddings, embedding_dim=embedding_dim
-            )
 
     def forward(self, img, task_id=None):
-        out = self.model(img)
-        out = out.view(out.shape[0], -1)
-        if task_id is not None:
+        if self.is_conditional:
             task_id = self.task_embedding(task_id.long().to(self.device))
-            out = torch.cat([out, task_id], dim=1)
-
+            task_emb = self.task_embedding_l(task_id.unsqueeze(1))
+            task_emb = task_emb.view(-1, self.img_shape[1], self.img_shape[1]).unsqueeze(1)
+            out = self.model(torch.cat([img, task_emb], dim=1))
+        else:
+            out = self.model(img)
+            
+        out = out.view(out.shape[0], -1)
         validity = self.adv_layer(out)
 
         return validity
