@@ -96,6 +96,10 @@ def run(args):
         embedding_dim=0 if not args.class_cond else num_classes,
     ).to(device)
 
+    class_table = (
+        torch.zeros(n_tasks, num_classes, dtype=torch.long) if args.class_cond else None
+    )
+
     print(local_generator)
     print(
         f"Generator number of learnable parmeters: {count_parameters(local_generator)}"
@@ -229,7 +233,9 @@ def run(args):
                 local_b1=args.local_b1,
                 local_b2=args.local_b2,
                 warmup_rounds=args.global_warmup,
-                class_cond=args.class_cond
+                class_cond=args.class_cond,
+                class_table=class_table,
+                num_classes=num_classes,
             )
         else:
             print("Wrong training procedure")
@@ -285,7 +291,7 @@ def run(args):
                     task_id=task_id,
                     calculate_class_dist=args.dataset.lower() == "mnist",
                     batch_size=args.val_batch_size,
-                    class_cond=args.class_cond
+                    class_cond=args.class_cond,
                 )
 
                 fid_local_gan[task_id] = fid_result
@@ -314,7 +320,7 @@ def run(args):
                     task_id=j,
                     calculate_class_dist=args.dataset.lower() == "mnist",
                     batch_size=args.val_batch_size,
-                    class_cond=args.class_cond
+                    class_cond=args.class_cond,
                 )
                 fid_table[j][task_name] = fid_result
                 precision_table[j][task_name] = precision
@@ -331,16 +337,28 @@ def run(args):
                         }
                     )
                     print(f"Generated classes: {Counter(generated_classes)}")
-                    
+
                 if args.class_cond:
                     n_classes_per_task = num_classes // num_batches
-                    classes_to_generate = [c for c in range(j*2, (j*2)+n_classes_per_task)]
-                    task_ids = torch.cat([(torch.zeros([args.num_gen_images//len(classes_to_generate)]) + c) for c in classes_to_generate]).to(curr_global_generator.device)
+                    classes_to_generate = [
+                        c for c in range(j * 2, (j * 2) + n_classes_per_task)
+                    ]
+                    task_ids = torch.cat(
+                        [
+                            (
+                                torch.zeros(
+                                    [args.num_gen_images // len(classes_to_generate)]
+                                )
+                                + c
+                            )
+                            for c in classes_to_generate
+                        ]
+                    ).to(curr_global_generator.device)
                     generations = curr_global_generator(
-                        torch.randn(
-                            len(task_ids), curr_global_generator.latent_dim
-                        ).to(curr_global_generator.device),
-                        task_ids
+                        torch.randn(len(task_ids), curr_global_generator.latent_dim).to(
+                            curr_global_generator.device
+                        ),
+                        task_ids,
                     )
                 else:
                     generations = curr_global_generator(
@@ -349,7 +367,7 @@ def run(args):
                         ).to(curr_global_generator.device),
                         (torch.zeros([args.num_gen_images]) + j).to(
                             curr_global_generator.device
-                        )
+                        ),
                     )
 
                 wandb.log(
