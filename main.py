@@ -347,7 +347,13 @@ def run(args):
                         [
                             (
                                 torch.zeros(
-                                    [args.num_gen_images // len(classes_to_generate)]
+                                    [
+                                        max(
+                                            args.num_gen_images
+                                            // len(classes_to_generate),
+                                            1,
+                                        )
+                                    ]
                                 )
                                 + c
                             )
