@@ -311,6 +311,7 @@ class CERN_Validator:
         batch_size,
         starting_point=None,
         calculate_class_dist=False,
+        class_cond=False
     ):
         curr_global_generator.eval()
         test_loader = self.dataloaders[task_id]
