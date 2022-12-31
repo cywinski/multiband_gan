@@ -4,6 +4,8 @@ import gradio as gr
 import numpy as np
 import umap
 from matplotlib import pyplot as plt
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+from matplotlib.patches import FancyBboxPatch
 import sys
 
 sys.path.append("../")
@@ -11,7 +13,8 @@ sys.path.append("../")
 LATENT_SIZE = 100
 DEVICE = "cuda"
 BASE_LATENT = None
-RECUCER_UMAP = umap.UMAP()
+BASE_GENERATIONS = None
+REDUCER_UMAP = umap.UMAP()
 NUM_NOISE_SAMPLES_TO_PLOT = 300
 NOISE_TO_PLOT = torch.randn([NUM_NOISE_SAMPLES_TO_PLOT, LATENT_SIZE], device=DEVICE)
 SCENARIOS_MAP = {
@@ -126,54 +129,90 @@ def update_task_ids(scenario):
 
 
 def plot_latent(extra_noise, dataset, scenario, task_id):
-    fig = plt.figure()
+    fig, ax = plt.subplots()
     generator = load_generator(dataset, scenario)
     global BASE_LATENT
+    global BASE_GENERATIONS
 
     if BASE_LATENT is None:
         task_ids = (torch.zeros([NUM_NOISE_SAMPLES_TO_PLOT]) + task_id).to(DEVICE)
-        _, base_latent = generator(NOISE_TO_PLOT, task_ids, return_emb=True)
+        base_generations, base_latent = generator(
+            NOISE_TO_PLOT, task_ids, return_emb=True
+        )
         base_latent = base_latent.detach().cpu().numpy()
-        base_latent = RECUCER_UMAP.fit_transform(base_latent)
+        base_latent = REDUCER_UMAP.fit_transform(base_latent)
         BASE_LATENT = base_latent
-        plt.scatter(
-            x=base_latent[:, 0],
-            y=base_latent[:, 1],
-            color="b",
-            linewidths=1,
-            edgecolors="b",
-            label="Random noise",
-        )
-    else:
-        plt.scatter(
-            x=BASE_LATENT[:, 0],
-            y=BASE_LATENT[:, 1],
-            color="b",
-            linewidths=1,
-            edgecolors="b",
-            label="Random noise",
-        )
+        BASE_GENERATIONS = base_generations
+
+    xs = BASE_LATENT[:, 0]
+    ys = BASE_LATENT[:, 1]
+
+    ax.scatter(
+        x=xs,
+        y=ys,
+        color="b",
+        linewidths=1,
+        edgecolors="b",
+        label="Random noise",
+        alpha=0.5,
+    )
+
+    # plot examplary generations in latent space
+    for j in range(len(xs)):
+        if j % 20 == 0:
+            generation = BASE_GENERATIONS[j].cpu().detach().numpy()
+            generation = np.swapaxes(generation, 0, 2)
+            generation = np.swapaxes(generation, 0, 1)
+            imagebox = OffsetImage(
+                generation,
+                zoom=0.7,
+                cmap="gray"
+                if dataset.lower() in ["mnist", "fashionmnist", "omniglot", "cern"]
+                else None,
+                alpha=0.8,
+            )
+            ab = AnnotationBbox(imagebox, (xs[j], ys[j]), frameon=False)
+            ax.add_artist(ab)
 
     if extra_noise is not None:
         extra_noise = np.array(extra_noise.values, dtype=np.float16).flatten()
         extra_noise = torch.from_numpy(extra_noise).unsqueeze(0).to(DEVICE)
         task_ids = (torch.zeros([1]) + task_id).to(DEVICE)
-        _, noise_in_latent = generator(extra_noise, task_ids, return_emb=True)
+        extra_generation, noise_in_latent = generator(
+            extra_noise, task_ids, return_emb=True
+        )
         noise_in_latent = noise_in_latent.detach().cpu().numpy()
-        noise_in_latent = RECUCER_UMAP.transform(noise_in_latent.reshape(1, -1))
+        noise_in_latent = REDUCER_UMAP.transform(noise_in_latent.reshape(1, -1))
 
-        plt.scatter(
-            noise_in_latent[:, 0],
-            noise_in_latent[:, 1],
+        ax.scatter(
+            noise_in_latent[0, 0],
+            noise_in_latent[0, 1],
             color="r",
-            label="Provided noise",
-            linewidths=2,
+            label="Provided noise with the generation",
+            linewidths=1,
             marker="X",
         )
 
+        extra_generation = extra_generation[0].cpu().detach().numpy()
+        extra_generation = np.swapaxes(extra_generation, 0, 2)
+        extra_generation = np.swapaxes(extra_generation, 0, 1)
+        imagebox = OffsetImage(
+            extra_generation,
+            zoom=0.7,
+            cmap="gray"
+            if dataset.lower() in ["mnist", "fashionmnist", "omniglot", "cern"]
+            else None,
+        )
+        ab = AnnotationBbox(
+            imagebox,
+            (noise_in_latent[0, 0] + 0.3, noise_in_latent[0, 1] + 0.3),
+            frameon=True,
+        )
+        ax.add_artist(ab)
+
     plt.axis("off")
     plt.legend()
-    plt.title(f"Generator's latent space for task {task_id}")
+    plt.title(f"Translator's latent space for task {task_id}")
     return gr.update(value=fig, visible=True)
 
 
@@ -247,17 +286,17 @@ with gr.Blocks() as demo:
         )
         gen_bttn = gr.Button("Generate")
         with gr.Row():
-            generated_images = gr.Image(label="Generation", interactive=False).style(
-                height=DISPLAY_IMG_H, width=DISPLAY_IMG_W
-            )
-            latent_plot = gr.Plot(interactive=False, label="Generator's latent space")
+            # generated_images = gr.Image(label="Generation", interactive=False).style(
+            #     height=DISPLAY_IMG_H, width=DISPLAY_IMG_W
+            # )
+            latent_plot = gr.Plot(interactive=False, label="Translator's latent space")
 
         # generate images
-        gen_bttn.click(
-            fn=predict,
-            inputs=[seed, dataset, task_id, n_imgs_to_generate, scenario, noise],
-            outputs=generated_images,
-        )
+        # gen_bttn.click(
+        #     fn=predict,
+        #     inputs=[seed, dataset, task_id, n_imgs_to_generate, scenario, noise],
+        #     outputs=generated_images,
+        # )
         # display possible scenarios for dataset
         dataset.change(
             fn=update_scenarios, inputs=[dataset], outputs=[scenario, task_id]
