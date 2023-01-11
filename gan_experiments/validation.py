@@ -127,7 +127,7 @@ class Validator:
 
                 if class_cond:
                     curr_labels = labels[n_batches_generated*batch_size:(n_batches_generated*batch_size)+n_batch_to_generate].to(curr_global_generator.device)
-                    task_ids = torch.zeros(n_batch_to_generate).to(curr_global_generator.device) + curr_labels
+                    task_ids = torch.zeros(n_batch_to_generate).to(curr_global_generator.device) + torch.squeeze(curr_labels)
                 else:
                     task_ids = torch.zeros(n_batch_to_generate) + task_id
                 example = curr_global_generator(z, task_ids)
