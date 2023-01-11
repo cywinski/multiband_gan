@@ -8,7 +8,7 @@ from torch import Tensor
 from torch.autograd import Variable
 
 
-def compute_gradient_penalty(D, real_samples, fake_samples, device):
+def compute_gradient_penalty(D, real_samples, fake_samples, device, task_ids):
     """Calculates the gradient penalty loss for WGAN GP"""
     # Random weight term for interpolation between real and fake samples
     alpha = Tensor(np.random.random((real_samples.size(0), 1, 1, 1))).to(device)
@@ -16,7 +16,7 @@ def compute_gradient_penalty(D, real_samples, fake_samples, device):
     interpolates = (alpha * real_samples + ((1 - alpha) * fake_samples)).requires_grad_(
         True
     )
-    d_interpolates = D(interpolates)
+    d_interpolates = D(interpolates, task_ids)
     fake = Variable(
         Tensor(real_samples.shape[0], 1).fill_(1.0), requires_grad=False
     ).to(device)
@@ -69,7 +69,19 @@ def generate_images_grid(generator, device, task_ids, noise=None):
     return fig
 
 
-def generate_previous_data(n_prev_tasks, n_prev_examples, curr_global_generator):
+def prepare_class_samplers(task_id, class_table):
+    class_samplers = []
+    for task_id in range(task_id):
+        local_probs = class_table[task_id] * 1.0 / torch.sum(class_table[task_id])
+        class_samplers.append(
+            torch.distributions.categorical.Categorical(probs=local_probs)
+        )
+    return class_samplers
+
+
+def generate_previous_data(
+    n_prev_tasks, n_prev_examples, curr_global_generator, class_table=None
+):
     curr_global_generator.eval()
     with torch.no_grad():
         if not n_prev_examples:
@@ -79,9 +91,19 @@ def generate_previous_data(n_prev_tasks, n_prev_examples, curr_global_generator)
                 torch.Tensor().to(curr_global_generator.device),
             )
 
-        # Generate equally distributed examples from previous tasks
-        # było trochę inaczej :)
-        tasks_dist = [n_prev_examples // n_prev_tasks for _ in range(n_prev_tasks)]
+        if class_table is None:
+            # Generate equally distributed examples from previous tasks
+            tasks_dist = [n_prev_examples // n_prev_tasks for _ in range(n_prev_tasks)]
+        else:
+            # Generate replays based on class distribution
+            curr_class_table = class_table[:n_prev_tasks]
+            tasks_dist = (
+                torch.sum(curr_class_table, dim=1)
+                * n_prev_examples
+                // torch.sum(curr_class_table)
+            )
+            tasks_dist[: n_prev_examples - tasks_dist.sum()] += 1
+
         task_ids = []
         for task_id in range(n_prev_tasks):
             if tasks_dist[task_id]:
@@ -93,6 +115,21 @@ def generate_previous_data(n_prev_tasks, n_prev_examples, curr_global_generator)
             .float()
             .to(curr_global_generator.device)
         )
+
+        if class_table is not None:
+            class_samplers = prepare_class_samplers(n_prev_tasks, curr_class_table)
+
+            sampled_classes = []
+            for task_id in range(n_prev_tasks):
+                if tasks_dist[task_id] > 0:
+                    sampled_classes.append(
+                        class_samplers[task_id].sample(tasks_dist[task_id].view(-1, 1))
+                    )
+            sampled_classes = torch.cat(sampled_classes).to(
+                curr_global_generator.device
+            )
+            task_ids = sampled_classes
+
         random_noise = torch.randn(len(task_ids), curr_global_generator.latent_dim).to(
             curr_global_generator.device
         )
@@ -101,11 +138,17 @@ def generate_previous_data(n_prev_tasks, n_prev_examples, curr_global_generator)
         return generations, random_noise, task_ids
 
 
-def optimize_noise(images, generator, n_iterations, task_id, lr, log=False):
+def optimize_noise(
+    images, generator, n_iterations, task_id, lr, log=False, labels=None
+):
     generator.eval()
 
     images = images.to(generator.device)
-    task_ids = (torch.zeros([len(images)]) + task_id).to(generator.device)
+    task_ids = (
+        (torch.zeros([len(images)]) + task_id).to(generator.device)
+        if labels is None
+        else labels
+    )
     criterion = torch.nn.MSELoss()
 
     noise = torch.randn(len(images), generator.latent_dim).to(generator.device)

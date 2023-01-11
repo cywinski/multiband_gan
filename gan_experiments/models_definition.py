@@ -13,6 +13,7 @@ class Generator(nn.Module):
         self.device = device
 
         self.translator = translator
+        self.class_table = None
 
         def generator_block(
             in_filters,
@@ -188,7 +189,7 @@ class Generator(nn.Module):
                     bn=False,
                 ),
             )
-            
+
         elif img_shape[1] == 44:
             self.scaler = img_shape[1] // 8
             self.l1 = nn.Linear(
@@ -252,14 +253,15 @@ class Generator(nn.Module):
 
 class Discriminator(nn.Module):
     def __init__(
-        self,
-        img_shape,
-        device,
-        num_features,
+        self, img_shape, device, num_features, num_embeddings=0, embedding_dim=0
     ):
         super(Discriminator, self).__init__()
         self.img_shape = img_shape
         self.device = device
+        self.num_embeddings = num_embeddings
+        self.embedding_dim = embedding_dim
+        self.is_conditional = self.num_embeddings and self.embedding_dim
+
         def discriminator_block(
             in_filters,
             out_filters,
@@ -294,11 +296,21 @@ class Discriminator(nn.Module):
 
             return block
 
+        if self.is_conditional:
+            self.task_embedding = nn.Embedding(
+                num_embeddings=num_embeddings, embedding_dim=embedding_dim
+            )
+            self.task_embedding_l = nn.Sequential(
+                nn.Linear(embedding_dim, 400),
+                nn.LeakyReLU(0.2),
+                nn.Linear(400, img_shape[1] ** 2),
+            )
+
         if img_shape[1] == 28:
             self.model = nn.Sequential(
                 # in: 28x28
                 *discriminator_block(
-                    img_shape[0],
+                    img_shape[0] + 1 if self.is_conditional else img_shape[0],
                     num_features,
                     kernel_size=(4, 4),
                     stride=(2, 2),
@@ -337,7 +349,7 @@ class Discriminator(nn.Module):
             self.model = nn.Sequential(
                 # in: 32x32
                 *discriminator_block(
-                    img_shape[0],
+                    img_shape[0] + 1 if self.is_conditional else img_shape[0],
                     num_features,
                     kernel_size=(4, 4),
                     stride=(2, 2),
@@ -396,7 +408,7 @@ class Discriminator(nn.Module):
             self.model = nn.Sequential(
                 # in: 64x64
                 *discriminator_block(
-                    img_shape[0],
+                    img_shape[0] + 1 if self.is_conditional else img_shape[0],
                     num_features,
                     kernel_size=(5, 5),
                     stride=(2, 2),
@@ -444,7 +456,7 @@ class Discriminator(nn.Module):
             self.model = nn.Sequential(
                 # in: 44x44
                 *discriminator_block(
-                    img_shape[0],
+                    img_shape[0] + 1 if self.is_conditional else img_shape[0],
                     num_features,
                     kernel_size=(4, 4),
                     stride=(2, 2),
@@ -491,8 +503,17 @@ class Discriminator(nn.Module):
 
         self.adv_layer = nn.Sequential(*last_layers)
 
-    def forward(self, img):
-        out = self.model(img)
+    def forward(self, img, task_id=None):
+        if self.is_conditional:
+            task_id = self.task_embedding(task_id.long().to(self.device))
+            task_emb = self.task_embedding_l(task_id.unsqueeze(1))
+            task_emb = task_emb.view(
+                -1, self.img_shape[1], self.img_shape[1]
+            ).unsqueeze(1)
+            out = self.model(torch.cat([img, task_emb], dim=1))
+        else:
+            out = self.model(img)
+
         out = out.view(out.shape[0], -1)
         validity = self.adv_layer(out)
 
@@ -500,25 +521,24 @@ class Discriminator(nn.Module):
 
 
 class Translator(nn.Module):
-    def __init__(self, latent_size, device, num_tasks, task_embedding_dim=5):
+    def __init__(self, latent_size, device, num_embeddings, embedding_dim):
         super().__init__()
         self.device = device
         self.latent_size = latent_size
-        self.num_tasks = num_tasks
-        self.task_embedding_dim = task_embedding_dim
+        self.num_embeddings = num_embeddings
+        self.embedding_dim = embedding_dim
 
         self.fc = nn.Sequential(
-            nn.Linear(latent_size + self.task_embedding_dim, latent_size * 4),
+            nn.Linear(latent_size + self.embedding_dim, latent_size * 4),
             nn.LeakyReLU(0.2),
             nn.Linear(latent_size * 4, latent_size),
         )
 
         self.task_embedding = nn.Embedding(
-            num_embeddings=self.num_tasks, embedding_dim=self.task_embedding_dim
+            num_embeddings=self.num_embeddings, embedding_dim=self.embedding_dim
         )
 
     def forward(self, x, task_id):
-        # task_id = F.one_hot(task_id.long(), num_classes=self.num_tasks).to(self.device)
         task_id = self.task_embedding(task_id.long().to(self.device))
         x = torch.cat([x, task_id], dim=1)
         out = self.fc(x)

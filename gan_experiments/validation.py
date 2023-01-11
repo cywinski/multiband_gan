@@ -66,8 +66,8 @@ class Validator:
         curr_global_generator,
         task_id,
         batch_size,
-        starting_point=None,
         calculate_class_dist=True,
+        class_cond=False
     ):
         curr_global_generator.eval()
 
@@ -78,14 +78,12 @@ class Validator:
             distribution_gen = []
             precalculated_statistics = False
             os.makedirs(os.path.join("results", "orig_stats"), exist_ok=True)
-            # os.makedirs(f"results/orig_stats/", exist_ok=True)
             stats_file_path = os.path.join(
                 "results",
                 "orig_stats",
-                f"{self.dataset}_{self.stats_file_name}_{task_id}.npy",
+                f"{self.dataset}_{self.stats_file_name}_{task_id}_{class_cond}.npy",
             )
-            # stats_file_path = f"results/orig_stats/{self.dataset}_{self.stats_file_name}_{task_id}.npy"
-            if os.path.exists(stats_file_path):
+            if os.path.exists(stats_file_path) and not class_cond:
                 print(
                     f"Loading cached original data statistics from: {self.stats_file_name}"
                 )
@@ -93,10 +91,12 @@ class Validator:
                 precalculated_statistics = True
 
             print("Calculating FID...")
-            if not precalculated_statistics:
+            labels = []
+            if not precalculated_statistics or class_cond:
                 for idx, batch in enumerate(test_loader):
                     x = batch[0].to(self.device)
                     y = batch[1]
+                    labels.extend(y.numpy())
                     
                     if self.dataset.lower() in ["fashionmnist", "doublemnist"]:
                         x = x.repeat([1, 3, 1, 1])
@@ -116,14 +116,20 @@ class Validator:
                     raise NotImplementedError  # Missing classifier for this dataset
             generated_classes = []
 
+            labels = torch.from_numpy(np.concatenate([labels]))
             examples_to_generate = len(distribution_orig)
+            n_batches_generated = 0
             while examples_to_generate:
                 n_batch_to_generate = min(batch_size, examples_to_generate)
                 z = torch.randn(
                     [n_batch_to_generate, curr_global_generator.latent_dim]
                 ).to(self.device)
 
-                task_ids = torch.zeros(n_batch_to_generate) + task_id
+                if class_cond:
+                    curr_labels = labels[n_batches_generated*batch_size:(n_batches_generated*batch_size)+n_batch_to_generate].to(curr_global_generator.device)
+                    task_ids = torch.zeros(n_batch_to_generate).to(curr_global_generator.device) + torch.squeeze(curr_labels)
+                else:
+                    task_ids = torch.zeros(n_batch_to_generate) + task_id
                 example = curr_global_generator(z, task_ids)
 
                 if self.dataset.lower() in ["fashionmnist", "doublemnist"]:
@@ -137,6 +143,7 @@ class Validator:
                     )
 
                 examples_to_generate -= n_batch_to_generate
+                n_batch_to_generate += 1
                 print(f"examples_to_generate: {examples_to_generate}")
                 
             if calculate_class_dist:
@@ -304,6 +311,7 @@ class CERN_Validator:
         batch_size,
         starting_point=None,
         calculate_class_dist=False,
+        class_cond=False
     ):
         curr_global_generator.eval()
         test_loader = self.dataloaders[task_id]

@@ -26,6 +26,8 @@ def train_local_wgan_gp(
     local_scheduler_rate,
     b1,
     b2,
+    class_cond=False,
+    num_classes=None,
 ):
     # Optimizers
     optimizer_g = torch.optim.Adam(
@@ -51,14 +53,23 @@ def train_local_wgan_gp(
         num_gen_images, local_generator.latent_dim, device=local_generator.device
     )
 
+    table_tmp = torch.zeros(num_classes, dtype=torch.long)
+
     for epoch in range(n_epochs):
         local_generator.train()
         for i, batch in enumerate(task_loader):
+            if not epoch:
+                class_counter = torch.unique(batch[1], return_counts=True)
+                table_tmp[class_counter[0]] += class_counter[1].cpu()
+
             # Configure input
             real_imgs = Variable(batch[0].type(Tensor)).to(local_generator.device)
-            task_ids = (torch.zeros([len(batch[0])]) + task_id).to(
-                local_generator.device
-            )
+            if not class_cond:
+                task_ids = (torch.zeros([len(batch[0])]) + task_id).to(
+                    local_generator.device
+                )
+            else:
+                task_ids = torch.squeeze(batch[1]).to(local_generator.device)
 
             # ---------------------
             #  Train Discriminator (Critic)
@@ -82,11 +93,15 @@ def train_local_wgan_gp(
             fake_imgs.detach()
 
             # Train on real images -> compare predictions to 1
-            d_output_real = local_discriminator(real_imgs)
+            d_output_real = local_discriminator(
+                real_imgs, task_ids if class_cond else None
+            )
             d_loss_real = -torch.mean(d_output_real)
 
             # Train on fake images -> compare predictions to -1
-            d_output_fake = local_discriminator(fake_imgs)
+            d_output_fake = local_discriminator(
+                fake_imgs, task_ids if class_cond else None
+            )
             d_loss_fake = torch.mean(d_output_fake)
 
             # Gradient penalty
@@ -95,6 +110,7 @@ def train_local_wgan_gp(
                 real_imgs.data,
                 fake_imgs.data,
                 local_generator.device,
+                task_ids=task_ids if class_cond else None,
             )
             # Wasserstein distance
             wasserstein_distance = -(d_loss_real + d_loss_fake)
@@ -118,7 +134,9 @@ def train_local_wgan_gp(
 
                 # Loss measures generator's ability to fool the discriminator
                 # Train on fake images -> compare predictions to 1
-                d_output_fake = local_discriminator(fake_imgs)
+                d_output_fake = local_discriminator(
+                    fake_imgs, task_ids if class_cond else None
+                )
                 g_loss = -torch.mean(d_output_fake)
 
                 g_loss.backward()
@@ -153,14 +171,35 @@ def train_local_wgan_gp(
 
         if epoch % 10 == 0:
             local_generator.eval()
-            generations = local_generator(
-                fixed_noise,
-                (torch.zeros([num_gen_images]) + task_id).to(local_generator.device),
-            )
+            if not class_cond:
+                task_ids = (torch.zeros([num_gen_images]) + task_id).to(
+                    local_generator.device
+                )
+            else:
+                unique_classes = np.sort(torch.unique(task_ids.cpu()).numpy())
+                task_ids = torch.cat(
+                    [
+                        (torch.zeros([num_gen_images // len(unique_classes)]) + c)
+                        for c in unique_classes
+                    ]
+                ).to(local_generator.device)
+                if task_ids.shape[0] < fixed_noise.shape[0]:
+                    task_ids = torch.cat(
+                        [
+                            task_ids,
+                            (
+                                torch.zeros([fixed_noise.shape[0] - task_ids.shape[0]])
+                                + unique_classes[0]
+                            ).to(local_generator.device),
+                        ]
+                    )
+            generations = local_generator(fixed_noise, task_ids)
             wandb.log({f"local_generations_task_{task_id}": wandb.Image(generations)})
 
         scheduler_g.step()
         scheduler_d.step()
+
+    return table_tmp
 
 
 def train_local(
@@ -177,12 +216,14 @@ def train_local(
     lambda_gp,
     b1,
     b2,
+    class_cond=False,
+    num_classes=None,
 ):
     local_generator.train()
     local_discriminator.train()
     local_generator.translator.train()
 
-    train_local_wgan_gp(
+    return train_local_wgan_gp(
         n_epochs,
         task_loader,
         local_generator,
@@ -196,6 +237,8 @@ def train_local(
         local_scheduler_rate,
         b1,
         b2,
+        class_cond,
+        num_classes,
     )
 
 
@@ -213,6 +256,8 @@ def train_global_generator(
     num_gen_images,
     optim_noise_lr,
     global_scheduler_rate,
+    class_cond=False,
+    class_table=None,
 ):
     global_generator = copy.deepcopy(curr_global_generator)
     global_generator.to(curr_global_generator.device)
@@ -222,7 +267,9 @@ def train_global_generator(
 
     criterion = torch.nn.MSELoss()
 
-    optimizer_g = torch.optim.Adam(global_generator.translator.parameters(), lr=global_gen_lr) # at the beginning train only translator
+    optimizer_g = torch.optim.Adam(
+        global_generator.translator.parameters(), lr=global_gen_lr
+    )  # at the beginning train only translator
     scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
         optimizer_g, gamma=global_scheduler_rate
     )
@@ -242,11 +289,13 @@ def train_global_generator(
         global_generator.train()
         if epoch == warmup_rounds:
             print("End of warmup")
-            optimizer_g = torch.optim.Adam(global_generator.parameters(), lr=global_gen_lr)
+            optimizer_g = torch.optim.Adam(
+                global_generator.parameters(), lr=global_gen_lr
+            )
             scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
                 optimizer_g, gamma=global_scheduler_rate
             )
-        
+
         for i, batch in enumerate(task_loader):
 
             # Generate data -> (noise, generation) pairs for each previous task
@@ -254,9 +303,11 @@ def train_global_generator(
                 n_prev_tasks=task_id,
                 n_prev_examples=n_prev_examples,
                 curr_global_generator=curr_global_generator,
+                class_table=class_table,
             )
             # Real images and optimized noise of current task
             curr_examples = batch[0]
+            curr_labels = batch[1] if class_cond else None
             if not epoch:
                 curr_noise = gan_utils.optimize_noise(
                     curr_examples,
@@ -265,12 +316,16 @@ def train_global_generator(
                     task_id,
                     lr=optim_noise_lr,
                     log=not i,  # log only first batch for readability
+                    labels=curr_labels,
                 )
                 curr_noise_all.append(curr_noise.to("cpu"))
             else:
                 curr_noise = curr_noise_all[i].to(global_generator.device)
 
-            curr_task_ids = torch.zeros([len(curr_examples)]) + task_id
+            if not class_cond:
+                curr_task_ids = torch.zeros([len(curr_examples)]) + task_id
+            else:
+                curr_task_ids = curr_labels
 
             examples_concat = torch.cat(
                 [prev_examples, curr_examples.to(global_generator.device)]
@@ -324,11 +379,46 @@ def train_global_generator(
         if epoch % 10 == 0:
             global_generator.eval()
             for learned_task_id in range(0, task_id + 1):
+                if not class_cond:
+                    task_ids = (torch.zeros([num_gen_images]) + learned_task_id).to(
+                        global_generator.device
+                    )
+                else:
+                    n_classes_per_task = torch.unique(curr_labels).shape[0]
+                    classes_to_generate = [
+                        c
+                        for c in range(
+                            learned_task_id * 2,
+                            (learned_task_id * 2) + n_classes_per_task,
+                        )
+                    ]
+                    task_ids = torch.cat(
+                        [
+                            (
+                                torch.zeros(
+                                    [fixed_noise.shape[0] // len(classes_to_generate)]
+                                )
+                                + c
+                            )
+                            for c in classes_to_generate
+                        ]
+                    ).to(global_generator.device)
+                    if task_ids.shape[0] < fixed_noise.shape[0]:
+                        task_ids = torch.cat(
+                            [
+                                task_ids,
+                                (
+                                    torch.zeros(
+                                        [fixed_noise.shape[0] - task_ids.shape[0]]
+                                    )
+                                    + classes_to_generate[0]
+                                ).to(global_generator.device),
+                            ]
+                        )
+
                 generations = global_generator(
                     fixed_noise,
-                    (torch.zeros([num_gen_images]) + learned_task_id).to(
-                        global_generator.device
-                    ),
+                    task_ids,
                     return_emb=False,
                 )
                 wandb.log(

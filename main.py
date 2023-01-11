@@ -78,8 +78,8 @@ def run(args):
     translator = models_definition.Translator(
         latent_size=args.latent_dim,
         device=device,
-        num_tasks=n_tasks,
-        task_embedding_dim=args.task_embedding_dim,
+        num_embeddings=num_batches if not args.class_cond else num_classes,
+        embedding_dim=num_batches if not args.class_cond else num_classes,
     ).to(device)
     local_generator = models_definition.Generator(
         latent_dim=args.latent_dim,
@@ -92,11 +92,13 @@ def run(args):
         img_shape=train_dataset[0][0].shape,
         device=device,
         num_features=args.d_n_features,
+        num_embeddings=0 if not args.class_cond else num_classes,
+        embedding_dim=0 if not args.class_cond else num_classes,
     ).to(device)
 
-    # local_generator.apply(gan_utils.weights_init_normal)
-    # local_discriminator.apply(gan_utils.weights_init_normal)
-    # translate_noise = True
+    class_table = (
+        torch.zeros(n_tasks, num_classes, dtype=torch.long) if args.class_cond else None
+    )
 
     print(local_generator)
     print(
@@ -107,7 +109,6 @@ def run(args):
         f"Discriminator number of learnable parmeters: {count_parameters(local_discriminator)}"
     )
 
-    class_table = torch.zeros(n_tasks, num_classes, dtype=torch.long)
     local_train_loaders = []
     global_train_loaders = []
     val_loaders = []
@@ -163,8 +164,8 @@ def run(args):
         labels_tasks_str = ""
 
     if not args.skip_validation:
-        stats_file_name = f"seed_{args.seed}_batches_{args.num_batches}_labels_{labels_tasks_str}_val_{args.score_on_val}_random_{args.random_split}_shuffle_{args.random_shuffle}_dirichlet_{args.dirichlet}_limit_{args.limit_data}_reverse_{args.reverse}"
-        
+        stats_file_name = f"seed_{args.seed}_batches_{args.num_batches}_labels_{labels_tasks_str}_val_{args.score_on_val}_random_{args.random_split}_shuffle_{args.random_shuffle}_dirichlet_{args.dirichlet}_limit_{args.limit_data}_reverse_{args.reverse}_class_cond_{args.class_cond}"
+
         print("Removing previous stats files: ")
         for f in glob(
             os.path.join(
@@ -173,7 +174,7 @@ def run(args):
         ):
             print(f)
             os.remove(f)
-            
+
         if args.dataset.lower() != "cern":
             validator = Validator(
                 n_classes=num_classes,
@@ -184,7 +185,9 @@ def run(args):
                 dataloaders=val_loaders,
             )
         else:
-            validator = CERN_Validator(dataloaders=val_loaders, stats_file_name=stats_file_name, device=device)
+            validator = CERN_Validator(
+                dataloaders=val_loaders, stats_file_name=stats_file_name, device=device
+            )
 
     curr_global_generator = None
 
@@ -230,6 +233,9 @@ def run(args):
                 local_b1=args.local_b1,
                 local_b2=args.local_b2,
                 warmup_rounds=args.global_warmup,
+                class_cond=args.class_cond,
+                class_table=class_table,
+                num_classes=num_classes,
             )
         else:
             print("Wrong training procedure")
@@ -263,6 +269,7 @@ def run(args):
                 f"model{task_id}_curr_global_discriminator",
             ),
         )
+        print("Models saved")
 
         fid_table[task_name] = OrderedDict()
         precision_table[task_name] = OrderedDict()
@@ -280,24 +287,26 @@ def run(args):
                     recall,
                     generated_classes,
                 ) = validator.calculate_results(
-                    curr_global_generator=curr_global_generator,
+                    curr_global_generator=curr_local_generator,
                     task_id=task_id,
                     calculate_class_dist=args.dataset.lower() == "mnist",
-                    batch_size=args.val_batch_size
+                    batch_size=args.val_batch_size,
+                    class_cond=args.class_cond,
                 )
-
-                # print(f"Generated classes: {generated_classes}")
 
                 fid_local_gan[task_id] = fid_result
                 print(f"FID local GAN: {fid_result}")
                 wandb.log({f"local_gan_FID_task_{task_id}": fid_result})
-                # data_df = [[c] for c in generated_classes]
-                # table = wandb.Table(data=data_df, columns=["generated_classes"])
-                # wandb.log({f'local_gan_generated_classes_task_{task_id}': wandb.plot.histogram(table, "generated_classes")})
                 if len(generated_classes):
-                    wandb.log({f"local_gan_generated_classes_task_{task_id}": wandb.Histogram(generated_classes, num_bins=num_classes)})
+                    wandb.log(
+                        {
+                            f"local_gan_generated_classes_task_{task_id}": wandb.Histogram(
+                                generated_classes, num_bins=num_classes
+                            )
+                        }
+                    )
                     print(f"Generated classes: {Counter(generated_classes)}")
-                
+
             for j in range(task_id + 1):
                 val_name = task_names[j]
                 print("validation split name:", val_name)
@@ -310,30 +319,62 @@ def run(args):
                     curr_global_generator=curr_global_generator,
                     task_id=j,
                     calculate_class_dist=args.dataset.lower() == "mnist",
-                    batch_size=args.val_batch_size
+                    batch_size=args.val_batch_size,
+                    class_cond=args.class_cond,
                 )
-                # print(f"Generated classes: {generated_classes}")
                 fid_table[j][task_name] = fid_result
                 precision_table[j][task_name] = precision
                 recall_table[j][task_name] = recall
                 print(f"FID task {j}: {fid_result}")
 
                 wandb.log({f"global_gan_FID_task_{j}": fid_result})
-                # data_df = [[c] for c in generated_classes]
-                # table = wandb.Table(data=data_df, columns=["scores"])
-                # wandb.log({f"global_gan_generated_classes_task_{j}": wandb.plot.histogram(table, "scores")})
                 if len(generated_classes):
-                    wandb.log({f"global_gan_generated_classes_task_{j}": wandb.Histogram(generated_classes, num_bins=num_classes)})
+                    wandb.log(
+                        {
+                            f"global_gan_generated_classes_task_{j}": wandb.Histogram(
+                                generated_classes, num_bins=num_classes
+                            )
+                        }
+                    )
                     print(f"Generated classes: {Counter(generated_classes)}")
-                generations, embeddings = curr_global_generator(
-                    torch.randn(
-                        args.num_gen_images, curr_global_generator.latent_dim
-                    ).to(curr_global_generator.device),
-                    (torch.zeros([args.num_gen_images]) + j).to(
-                        curr_global_generator.device
-                    ),
-                    return_emb=True,
-                )
+
+                if args.class_cond:
+                    n_classes_per_task = num_classes // num_batches
+                    classes_to_generate = [
+                        c for c in range(j * 2, (j * 2) + n_classes_per_task)
+                    ]
+                    task_ids = torch.cat(
+                        [
+                            (
+                                torch.zeros(
+                                    [
+                                        max(
+                                            args.num_gen_images
+                                            // len(classes_to_generate),
+                                            1,
+                                        )
+                                    ]
+                                )
+                                + c
+                            )
+                            for c in classes_to_generate
+                        ]
+                    ).to(curr_global_generator.device)
+                    generations = curr_global_generator(
+                        torch.randn(len(task_ids), curr_global_generator.latent_dim).to(
+                            curr_global_generator.device
+                        ),
+                        task_ids,
+                    )
+                else:
+                    generations = curr_global_generator(
+                        torch.randn(
+                            args.num_gen_images, curr_global_generator.latent_dim
+                        ).to(curr_global_generator.device),
+                        (torch.zeros([args.num_gen_images]) + j).to(
+                            curr_global_generator.device
+                        ),
+                    )
 
                 wandb.log(
                     {
@@ -341,18 +382,20 @@ def run(args):
                     }
                 )
 
-            local_generator = copy.deepcopy(curr_global_generator)
-            if args.new_d_every_task:
-                print("Building new discriminator")
-                local_discriminator = models_definition.Discriminator(
-                    img_shape=train_dataset[0][0].shape,
-                    device=device,
-                    num_features=args.d_n_features,
-                ).to(device)
+        local_generator = copy.deepcopy(curr_global_generator)
+        if args.new_d_every_task:
+            print("Building new discriminator")
+            local_discriminator = models_definition.Discriminator(
+                img_shape=train_dataset[0][0].shape,
+                device=device,
+                num_features=args.d_n_features,
+                num_embeddings=0 if not args.class_cond else num_classes,
+                embedding_dim=0 if not args.class_cond else num_classes,
+            ).to(device)
 
-            else:
-                print("Using discriminator from previous task")
-                local_discriminator = copy.deepcopy(curr_global_discriminator)
+        else:
+            print("Using discriminator from previous task")
+            local_discriminator = copy.deepcopy(curr_global_discriminator)
 
     return (
         fid_table,
@@ -585,7 +628,13 @@ def get_args(argv):
         help="Number of epochs for global warmup - only translator training",
     )
     parser.add_argument("--wandb_project", type=str, default="MultibandGAN")
-
+    parser.add_argument(
+        "--class_cond",
+        dest="class_cond",
+        default=False,
+        action="store_true",
+        help="Use class conditioning during training",
+    )
     args = parser.parse_args(argv)
 
     return args
