@@ -167,7 +167,7 @@ def plot_latent(extra_noise, dataset, scenario, task_id):
                 generation,
                 zoom=0.7,
                 cmap="gray"
-                if dataset.lower() in ["mnist", "fashionmnist", "omniglot", "cern"]
+                if dataset.lower() in ["mnist", "fashionmnist", "omniglot", "cern", "doublemnist"]
                 else None,
                 alpha=0.8,
             )
@@ -200,7 +200,7 @@ def plot_latent(extra_noise, dataset, scenario, task_id):
             extra_generation,
             zoom=0.7,
             cmap="gray"
-            if dataset.lower() in ["mnist", "fashionmnist", "omniglot", "cern"]
+            if dataset.lower() in ["mnist", "fashionmnist", "omniglot", "cern", "doublemnist"]
             else None,
         )
         ab = AnnotationBbox(
