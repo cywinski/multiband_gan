@@ -109,3 +109,21 @@ python3 main.py --wandb_project MultibandGAN --experiment_name CI_5 --dataset CI
 ```
 python3 main.py --wandb_project MultibandGAN --experiment_name Class-Incremental_5_tasks --dataset CERN --gpuid 0 --seed 42 --num_batches 5 --latent_dim 100 --batch_size 64 --score_on_val --num_local_epochs 120 --num_global_epochs 200 --local_dis_lr 0.0002 --local_gen_lr 0.0002 --local_scheduler_rate 0.99 --lambda_gp 10 --num_gen_images 64 --local_b1 0.0 --local_b2 0.9 --num_epochs_noise_optim 1000 --global_gen_lr 0.001 --optim_noise_lr 0.1 --global_scheduler_rate 0.99 --limit_previous 0.5 --d_n_features 32 --g_n_features 32 --global_warmup 5
 ```
+
+## Application
+
+### Inference from random noise
+Under the "Inference from random noise" tab, we can
+visualize the generations of the model trained according to the specific CL scenario and
+on a specific dataset. The generator takes as input a random noise vector.
+![](images/app_random_noise.png "Inference from random noise")
+
+### Inference from provided noise
+The "Inference from provided noise" tab is similar to the
+previously presented tab, except that now we can control the values of the input vector.
+The user provides the value of each element of that vector in the matrix. s a
+generation result, we now get the generation itself and the visualization of the translator’s
+latent space.
+
+![](images/app_provided_noise.png "Inference from provided noise")
+
