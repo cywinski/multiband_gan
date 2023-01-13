@@ -1,10 +1,6 @@
 --find-links https://download.pytorch.org/whl/torch_stable.html
 
-numpy==1.19.5
 torch==1.10.2+cu113
 torchvision==0.11.3+cu113
-pandas==1.1.5
-wandb==0.13.5
-matplotlib==3.3.4
-scipy==1.5.4
-scikit-learn==0.24.2
+gradio
+umap-learn

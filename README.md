@@ -1,9 +1,52 @@
 # Multiband GAN
 
-Multiband GAN is an adaptation of *multiband training* introduced in [Multiband VAE](https://github.com/KamilDeja/multiband_vae) method to the Generative Adversarial Networks architecture. To stabilize the training, instead of standard GAN architecture, we use WGAN with gradient penalty. We are able to outperform other known methods on the most popular continual learning benchmarks.
+## Table of Contents
+
+- [About](#about)
+- [Getting started](#getting_started)
+- [Experiments](#experiments)
+- [Reproducing results](#reproducing)
+- [Web Application](#app)
+- [Credits](#credits)
+
+## About <a name = "about"></a>
+
+Multiband GAN is an adaptation of unsupervised method for continual learning of geneartive models called *multiband training*, introduced in [Multiband VAE](https://github.com/KamilDeja/multiband_vae), to the Generative Adversarial Networks architecture. To stabilize the training, instead of standard GAN architecture, we use WGAN with gradient penalty. We are able to outperform other known methods on the most popular continual learning benchmarks.
 
 
-## Experiments
+## Getting started <a name = "getting_started"></a>
+
+### Prerequisites
+
+To install this repository, you should have `Python 3.6.9` installed. This repository was tested under `Linux` and `Windows 10`.
+
+### Installation
+
+1. Clone repository and navigate to project's directory
+```
+$ git clone https://github.com/bartooo/multiband_gan.git
+$ cd multiband_gan/
+```
+2. Create new virtual environment
+```
+$ python -m venv gan_venv
+```
+3. Activate created virtual environment:
+
+Linux:
+```
+$ source gan_venv/bin/activate
+```
+Windows:
+```
+$ gan_venv\Scripts\activate
+```
+4. Install requirements from `requirements.txt` file
+```
+$ pip install -r requirements.txt
+```
+
+## Experiments <a name = "experiments"></a>
 
 ### Multiband VAE
 CL Benchmark|Num. of tasks|FID $\downarrow$|Recall $\uparrow$| Precision $\uparrow$
@@ -15,8 +58,8 @@ FashionMNIST Dirichlet $\alpha=1$|10|77|58|69
 Split-Omniglot Class Incremental|5|12|98|96
 Split-Omniglot Class Incremental|20|24|95|91
 Omniglot Dirichlet $\alpha=1$|20|24|96|91
-FashionMNIST $\rightarrow$ MNIST|10|49|68|70
-MNIST $\rightarrow$ FashionMNIST|10|49|70|70
+FashionMNIST $\rightarrow$ MNIST Class Incremental|10|49|68|70
+MNIST $\rightarrow$ FashionMNIST Class Incremental|10|49|70|70
 Split-CelebA Class Incremental|5|95|28.5|23.2
 CelebA Dirichlet $\alpha=1$|10|93|33|22
 CelebA Dirichlet $\alpha=100$|10|89|36.2|28
@@ -32,14 +75,14 @@ FashionMNIST Dirichlet $\alpha=1$|10|56|79|77
 Split-Omniglot Class Incremental|5|3|97|95
 Split-Omniglot Class Incremental|20|6|89|81
 Omniglot Dirichlet $\alpha=1$|20|6|93|85
-FashionMNIST $\rightarrow$ MNIST|10|40|78|79
-MNIST $\rightarrow$ FashionMNIST|10|34|84|83
+FashionMNIST $\rightarrow$ MNIST Class Incremental|10|40|78|79
+MNIST $\rightarrow$ FashionMNIST Class Incremental|10|34|84|83
 Split-CelebA Class Incremental|5|57|66|64
 CelebA Dirichlet $\alpha=1$|10|60|66|67
 CelebA Dirichlet $\alpha=100$|10|49|70|76
 Split-CIFAR10 Class Incremental|5|113|65|37
 
-## Reproducing results
+## Reproducing results <a name = "reproducing"></a>
 1. Split-MNIST Class Incremental 5 tasks
 ```
 python3 main.py --wandb_project MultibandGAN --experiment_name CI_5 --dataset MNIST --gpuid 0 --seed 42 --num_batches 5 --latent_dim 100 --batch_size 64 --score_on_val --num_local_epochs 120 --num_global_epochs 200 --local_dis_lr 0.0002 --local_gen_lr 0.0002 --local_scheduler_rate 0.99 --lambda_gp 10 --num_gen_images 64 --local_b1 0.0 --local_b2 0.9 --num_epochs_noise_optim 1000 --global_gen_lr 0.001 --optim_noise_lr 0.1 --global_scheduler_rate 0.99 --limit_previous 0.5 --d_n_features 32 --g_n_features 32 --global_warmup 5
@@ -110,7 +153,40 @@ python3 main.py --wandb_project MultibandGAN --experiment_name CI_5 --dataset CI
 python3 main.py --wandb_project MultibandGAN --experiment_name Class-Incremental_5_tasks --dataset CERN --gpuid 0 --seed 42 --num_batches 5 --latent_dim 100 --batch_size 64 --score_on_val --num_local_epochs 120 --num_global_epochs 200 --local_dis_lr 0.0002 --local_gen_lr 0.0002 --local_scheduler_rate 0.99 --lambda_gp 10 --num_gen_images 64 --local_b1 0.0 --local_b2 0.9 --num_epochs_noise_optim 1000 --global_gen_lr 0.001 --optim_noise_lr 0.1 --global_scheduler_rate 0.99 --limit_previous 0.5 --d_n_features 32 --g_n_features 32 --global_warmup 5
 ```
 
-## Application
+## Application <a name = "app"></a>
+
+### Installation and running
+NOTE: `Gradio` package works from `Python 3.7` version!
+
+1. Navigate to app's directory
+```
+$ cd app/
+```
+2. Create new virtual environment
+```
+$ python -m venv app_venv
+```
+3. Activate created virtual environment:
+
+Linux:
+```
+$ source app_venv/bin/activate
+```
+Windows:
+```
+$ app_venv\Scripts\activate
+```
+4. Install requirements from `requirements.txt` file
+```
+$ pip install -r requirements.txt
+```
+
+Then, to run the application just run a `demo.py` file
+```
+python demo.py
+```
+
+
 
 ### Inference from random noise
 Under the "Inference from random noise" tab, we can
@@ -127,3 +203,6 @@ latent space.
 
 ![](images/app_provided_noise.png "Inference from provided noise")
 
+
+## Credits <a name = "credits"></a>
+Repository based on [Continual-Learning-Benchmark](https://github.com/GT-RIPL/Continual-Learning-Benchmark) and [Multiband VAE](https://github.com/KamilDeja/multiband_vae).
