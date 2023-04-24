@@ -69,7 +69,10 @@ def train_local_wgan_gp(
                     local_generator.device
                 )
             else:
-                task_ids = torch.squeeze(batch[1]).to(local_generator.device)
+                if len(batch[1]) == 1:
+                    task_ids = batch[1].to(local_generator.device)
+                else:
+                    task_ids = torch.squeeze(batch[1]).to(local_generator.device)
 
             # ---------------------
             #  Train Discriminator (Critic)

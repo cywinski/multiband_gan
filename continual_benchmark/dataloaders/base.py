@@ -415,8 +415,8 @@ def LSUN(dataroot, skip_normalization=False, train_aug=False):
 
 
 def CIFAR100(dataroot, skip_normalization=False, train_aug=False):
-    normalize = transforms.Normalize(mean=[0.507, 0.487, 0.441], std=[0.267, 0.256, 0.276])
-    # normalize = transforms.Normalize(mean=[0.5], std=[0.5])
+    # normalize = transforms.Normalize(mean=[0.507, 0.487, 0.441], std=[0.267, 0.256, 0.276])
+    normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 
     if skip_normalization:
         val_transform = transforms.Compose([
@@ -427,6 +427,7 @@ def CIFAR100(dataroot, skip_normalization=False, train_aug=False):
             transforms.ToTensor(),
             normalize,
         ])
+        print("Data has been normalized")
 
     train_transform = val_transform
     if train_aug:

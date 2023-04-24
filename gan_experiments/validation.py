@@ -47,6 +47,7 @@ class Validator:
             "flowers",
             "cern",
             "cifar10",
+            "cifar100"
         ]:
             from gan_experiments.evaluation_models.inception import InceptionV3
 

@@ -49,7 +49,7 @@ def run(args):
 
     if hasattr(train_dataset.dataset, "classes"):
         tasks_num_classes_dict = {
-            task_id: [train_dataset.dataset.classes[i] for i in class_idxs]
+            task_id: [train_dataset.dataset.classes[i] for i in class_idxs] # class_idxs[0]?
             for task_id, class_idxs in labels_tasks.items()
         }
     else:
