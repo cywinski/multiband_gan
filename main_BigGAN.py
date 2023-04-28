@@ -57,12 +57,20 @@ def run(args):
         labels_tasks[int(task_name)] = task.dataset.class_list
 
     if hasattr(train_dataset.dataset, "classes"):
-        tasks_num_classes_dict = {
+        try:
+            tasks_num_classes_dict = {
+                task_id: [
+                    train_dataset.dataset.classes[i] for i in class_idxs
+                ]
+                for task_id, class_idxs in labels_tasks.items()
+            }
+        except TypeError:
+            tasks_num_classes_dict = {
             task_id: [
-                train_dataset.dataset.classes[i] for i in class_idxs
-            ]  # class_idxs[0]?
-            for task_id, class_idxs in labels_tasks.items()
-        }
+                train_dataset.dataset.classes[i] for i in class_idxs[0]
+            ]
+            for task_id, class_idxs in labels_tasks.items() }
+         
     else:
         tasks_num_classes_dict = None
 
