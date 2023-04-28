@@ -1,3 +1,12 @@
+""" Based on: BigGAN: The Authorized Unofficial PyTorch release
+    Code by A. Brock and A. Andonian
+    This code is an unofficial reimplementation of
+    "Large-Scale GAN Training for High Fidelity Natural Image Synthesis,"
+    by A. Brock, J. Donahue, and K. Simonyan (arXiv 1809.11096).
+
+    Let's go.
+"""
+
 import argparse
 import copy
 import os
@@ -49,7 +58,9 @@ def run(args):
 
     if hasattr(train_dataset.dataset, "classes"):
         tasks_num_classes_dict = {
-            task_id: [train_dataset.dataset.classes[i] for i in class_idxs] # class_idxs[0]?
+            task_id: [
+                train_dataset.dataset.classes[i] for i in class_idxs
+            ]  # class_idxs[0]?
             for task_id, class_idxs in labels_tasks.items()
         }
     else:
@@ -74,39 +85,34 @@ def run(args):
     test_fid_table = OrderedDict()
     fid_local_gan = OrderedDict()
 
-    # Prepare GAN
+    # Import the model--this line allows us to dynamically select different files.
+    model = __import__("BigGAN")
+    # Next, build the model
     translator = models_definition.Translator(
         latent_size=args.latent_dim,
         device=device,
         num_embeddings=num_batches if not args.class_cond else num_classes,
         embedding_dim=num_batches if not args.class_cond else num_classes,
     ).to(device)
-    local_generator = models_definition.Generator(
-        latent_dim=args.latent_dim,
-        img_shape=train_dataset[0][0].shape,
-        device=device,
-        translator=translator,
-        num_features=args.g_n_features,
+    local_generator = model.Generator(
+        translator=translator, device=device, **vars(args)
     ).to(device)
-    local_discriminator = models_definition.Discriminator(
-        img_shape=train_dataset[0][0].shape,
-        device=device,
-        num_features=args.d_n_features,
-        num_embeddings=0 if not args.class_cond else num_classes,
-        embedding_dim=0 if not args.class_cond else num_classes,
-    ).to(device)
+    local_discriminator = model.Discriminator(device=device, **vars(args)).to(device)
+    G_ema, ema = None, None
 
-    class_table = (
-        torch.zeros(n_tasks, num_classes, dtype=torch.long) if args.class_cond else None
-    )
-
+    local_GD = model.G_D(local_generator, local_discriminator)
     print(local_generator)
-    print(
-        f"Generator number of learnable parmeters: {count_parameters(local_generator)}"
-    )
     print(local_discriminator)
     print(
-        f"Discriminator number of learnable parmeters: {count_parameters(local_discriminator)}"
+        "Number of params in G: {} D: {}".format(
+            *[
+                sum([p.data.nelement() for p in net.parameters()])
+                for net in [local_generator, local_discriminator]
+            ]
+        )
+    )
+    class_table = (
+        torch.zeros(n_tasks, num_classes, dtype=torch.long) if args.class_cond else None
     )
 
     local_train_loaders = []
@@ -213,6 +219,7 @@ def run(args):
                 task_id=task_id,
                 local_discriminator=local_discriminator,
                 local_generator=local_generator,
+                local_GD=local_GD,
                 local_task_loader=local_train_dataset_loader,
                 global_task_loader=global_train_dataset_loader,
                 n_local_epochs=args.num_local_epochs,
@@ -292,6 +299,7 @@ def run(args):
                     calculate_class_dist=args.dataset.lower() == "mnist",
                     batch_size=args.val_batch_size,
                     class_cond=args.class_cond,
+                    biggan_training=True,
                 )
 
                 fid_local_gan[task_id] = fid_result
@@ -321,6 +329,7 @@ def run(args):
                     calculate_class_dist=args.dataset.lower() == "mnist",
                     batch_size=args.val_batch_size,
                     class_cond=args.class_cond,
+                    biggan_training=True,
                 )
                 fid_table[j][task_name] = fid_result
                 precision_table[j][task_name] = precision
@@ -364,7 +373,7 @@ def run(args):
                         torch.randn(len(task_ids), curr_global_generator.latent_dim).to(
                             curr_global_generator.device
                         ),
-                        task_ids,
+                        curr_global_generator.shared(task_ids.long()),
                     )
                 else:
                     generations = curr_global_generator(
@@ -396,6 +405,10 @@ def run(args):
         else:
             print("Using discriminator from previous task")
             local_discriminator = copy.deepcopy(curr_global_discriminator)
+        
+        if local_GD is not None:
+            local_GD = model.G_D(local_generator, local_discriminator)
+            
 
     return (
         fid_table,
