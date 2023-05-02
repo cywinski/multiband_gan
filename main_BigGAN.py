@@ -656,7 +656,7 @@ def get_args(argv):
         "--G_ch", type=int, default=64, help="BigGAN generator number of channels"
     )
     parser.add_argument(
-        "--ch", type=int, default=64, help="BigGAN discriminator number of channels"
+        "--D_ch", type=int, default=64, help="BigGAN discriminator number of channels"
     )
     args = parser.parse_args(argv)
 
