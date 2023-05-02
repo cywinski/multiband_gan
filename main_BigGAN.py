@@ -59,18 +59,15 @@ def run(args):
     if hasattr(train_dataset.dataset, "classes"):
         try:
             tasks_num_classes_dict = {
-                task_id: [
-                    train_dataset.dataset.classes[i] for i in class_idxs
-                ]
+                task_id: [train_dataset.dataset.classes[i] for i in class_idxs]
                 for task_id, class_idxs in labels_tasks.items()
             }
         except TypeError:
             tasks_num_classes_dict = {
-            task_id: [
-                train_dataset.dataset.classes[i] for i in class_idxs[0]
-            ]
-            for task_id, class_idxs in labels_tasks.items() }
-         
+                task_id: [train_dataset.dataset.classes[i] for i in class_idxs[0]]
+                for task_id, class_idxs in labels_tasks.items()
+            }
+
     else:
         tasks_num_classes_dict = None
 
@@ -413,10 +410,9 @@ def run(args):
         else:
             print("Using discriminator from previous task")
             local_discriminator = copy.deepcopy(curr_global_discriminator)
-        
+
         if local_GD is not None:
             local_GD = model.G_D(local_generator, local_discriminator)
-            
 
     return (
         fid_table,
@@ -655,6 +651,12 @@ def get_args(argv):
         default=False,
         action="store_true",
         help="Use class conditioning during training",
+    )
+    parser.add_argument(
+        "--G_ch", type=int, default=64, help="BigGAN generator number of channels"
+    )
+    parser.add_argument(
+        "--ch", type=int, default=64, help="BigGAN discriminator number of channels"
     )
     args = parser.parse_args(argv)
 
