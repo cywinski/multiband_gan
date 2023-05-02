@@ -181,7 +181,10 @@ def optimize_noise(
         optimizer.zero_grad()
         generations = generator(noise, task_ids)
         loss = criterion(generations, images)
-        loss.backward()
+        if biggan_training:
+            loss.backward(retain_graph=True)
+        else:
+            loss.backward()
         optimizer.step()
         if i % 100 == 0:
             print(
