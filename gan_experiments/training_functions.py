@@ -120,7 +120,7 @@ def train_local_biggan(
                 }
             )
 
-        if epoch % 10 == 0:
+        if epoch % 50 == 0:
             local_generator.eval()
             if not class_cond:
                 task_ids = (torch.zeros([num_gen_images]) + task_id).to(
@@ -312,7 +312,7 @@ def train_local_wgan_gp(
                 }
             )
 
-        if epoch % 10 == 0:
+        if epoch % 50 == 0:
             local_generator.eval()
             if not class_cond:
                 task_ids = (torch.zeros([num_gen_images]) + task_id).to(

@@ -21,7 +21,7 @@ import torch.utils.data as data
 import continual_benchmark.dataloaders as dataloaders
 import continual_benchmark.dataloaders.base
 from continual_benchmark.dataloaders.datasetGen import data_split
-from gan_experiments import models_definition, gan_utils, multiband_training
+from gan_experiments import models_definition, gan_utils, multiband_training, BigGAN
 from gan_experiments.validation import Validator, CERN_Validator
 from visualise import *
 from utils import count_parameters
@@ -93,7 +93,7 @@ def run(args):
     # Import the model--this line allows us to dynamically select different files.
     model = __import__("BigGAN")
     # Next, build the model
-    translator = models_definition.Translator(
+    translator = BigGAN.Translator(
         latent_size=args.latent_dim,
         device=device,
         num_embeddings=num_batches if not args.class_cond else num_classes,
