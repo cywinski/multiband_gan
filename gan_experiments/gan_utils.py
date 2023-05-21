@@ -80,7 +80,11 @@ def prepare_class_samplers(task_id, class_table):
 
 
 def generate_previous_data(
-    n_prev_tasks, n_prev_examples, curr_global_generator, class_table=None
+    n_prev_tasks,
+    n_prev_examples,
+    curr_global_generator,
+    class_table=None,
+    biggan_training=False,
 ):
     curr_global_generator.eval()
     with torch.no_grad():
@@ -133,13 +137,28 @@ def generate_previous_data(
         random_noise = torch.randn(len(task_ids), curr_global_generator.latent_dim).to(
             curr_global_generator.device
         )
-        generations = curr_global_generator(random_noise, task_ids)
+
+        if biggan_training:
+            generations = curr_global_generator(
+                random_noise, curr_global_generator.shared(task_ids.long())
+            )
+        else:
+            generations = curr_global_generator(
+                random_noise, task_ids
+            )
 
         return generations, random_noise, task_ids
 
 
 def optimize_noise(
-    images, generator, n_iterations, task_id, lr, log=False, labels=None
+    images,
+    generator,
+    n_iterations,
+    task_id,
+    lr,
+    log=False,
+    labels=None,
+    biggan_training=False,
 ):
     generator.eval()
 
@@ -147,8 +166,11 @@ def optimize_noise(
     task_ids = (
         (torch.zeros([len(images)]) + task_id).to(generator.device)
         if labels is None
-        else labels
+        else labels.to(generator.device)
     )
+    if biggan_training:
+        task_ids = generator.shared(task_ids.long())
+
     criterion = torch.nn.MSELoss()
 
     noise = torch.randn(len(images), generator.latent_dim).to(generator.device)
@@ -159,7 +181,10 @@ def optimize_noise(
         optimizer.zero_grad()
         generations = generator(noise, task_ids)
         loss = criterion(generations, images)
-        loss.backward()
+        if biggan_training:
+            loss.backward(retain_graph=True)
+        else:
+            loss.backward()
         optimizer.step()
         if i % 100 == 0:
             print(
@@ -169,7 +194,7 @@ def optimize_noise(
         if log:
             wandb.log(
                 {
-                    f"loss_optimization_task_{task_id}": np.round(loss.item(), 3),
+                    f"loss_optimization/task_{task_id}": np.round(loss.item(), 3),
                 }
             )
 

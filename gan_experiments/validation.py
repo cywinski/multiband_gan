@@ -68,7 +68,8 @@ class Validator:
         task_id,
         batch_size,
         calculate_class_dist=True,
-        class_cond=False
+        class_cond=False,
+        biggan_training=False,
     ):
         curr_global_generator.eval()
 
@@ -131,6 +132,8 @@ class Validator:
                     task_ids = torch.zeros(n_batch_to_generate).to(curr_global_generator.device) + torch.squeeze(curr_labels)
                 else:
                     task_ids = torch.zeros(n_batch_to_generate) + task_id
+                if biggan_training:
+                    task_ids = curr_global_generator.shared(task_ids.long())
                 example = curr_global_generator(z, task_ids)
 
                 if self.dataset.lower() in ["fashionmnist", "doublemnist"]:
