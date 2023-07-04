@@ -205,12 +205,14 @@ def run(args):
     # RESUME TRAINING
     tasks_to_learn = task_names if not args.only_task_0 else {0}
     if args.resume_task > 0:
-        curr_local_generator = torch.load(os.path.join(
-                args.rpath,
-                args.dataset,
-                args.experiment_name,
-                f"model{args.resume_task}_curr_local_generator",
-            ))
+        for task in range(args.resume_task + 1):
+            curr_local_generator = torch.load(os.path.join(
+                    args.rpath,
+                    args.dataset,
+                    args.experiment_name,
+                    f"model{task}_curr_local_generator",
+                ))
+            class_table[task] = curr_local_generator.class_table
         curr_global_generator = torch.load(os.path.join(
                 args.rpath,
                 args.dataset,
