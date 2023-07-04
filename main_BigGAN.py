@@ -225,6 +225,9 @@ def run(args):
                 args.experiment_name,
                 f"model{args.resume_task}_curr_global_discriminator",
             ))
+        curr_global_generator.train()
+        curr_global_generator.translator.train()
+        curr_global_discriminator.train()
         if local_GD is not None:
             local_GD = model.G_D(curr_global_generator, curr_global_discriminator)
         local_generator = copy.deepcopy(curr_global_generator)
