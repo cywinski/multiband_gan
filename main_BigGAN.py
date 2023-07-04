@@ -202,7 +202,30 @@ def run(args):
 
     curr_global_generator = None
 
+    # RESUME TRAINING
     tasks_to_learn = task_names if not args.only_task_0 else {0}
+    if args.resume_task > 0:
+        curr_local_generator = torch.load(os.path.join(
+                args.rpath,
+                args.dataset,
+                args.experiment_name,
+                f"model{args.resume_task}_curr_local_generator",
+            ))
+        curr_global_generator = torch.load(os.path.join(
+                args.rpath,
+                args.dataset,
+                args.experiment_name,
+                f"model{args.resume_task}_curr_global_generator",
+            ))
+        curr_global_discriminator = torch.load(os.path.join(
+                args.rpath,
+                args.dataset,
+                args.experiment_name,
+                f"model{args.resume_task}_curr_global_discriminator",
+            ))
+        tasks_to_learn = task_names[args.resume_task+1:]
+        print(f"Model loaded from task {args.resume_task}")
+        
     print(f"Tasks to learn: {tasks_to_learn}")
     for task_id in tasks_to_learn:
         print(
@@ -657,6 +680,9 @@ def get_args(argv):
     )
     parser.add_argument(
         "--D_ch", type=int, default=64, help="BigGAN discriminator number of channels"
+    )
+    parser.add_argument(
+        "--resume_task", type=int, default=0
     )
     args = parser.parse_args(argv)
 
