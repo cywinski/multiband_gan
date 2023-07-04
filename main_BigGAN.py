@@ -232,6 +232,9 @@ def run(args):
             local_GD = model.G_D(curr_global_generator, curr_global_discriminator)
         local_generator = copy.deepcopy(curr_global_generator)
         local_discriminator = copy.deepcopy(curr_global_discriminator)
+        local_generator.train()
+        local_generator.translator.train()
+        local_discriminator.train()
 
         tasks_to_learn = task_names[args.resume_task+1:]
         print(f"Model loaded from task {args.resume_task}")
