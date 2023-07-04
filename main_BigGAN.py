@@ -223,6 +223,11 @@ def run(args):
                 args.experiment_name,
                 f"model{args.resume_task}_curr_global_discriminator",
             ))
+        if local_GD is not None:
+            local_GD = model.G_D(curr_global_generator, curr_global_discriminator)
+        local_generator = copy.deepcopy(curr_global_generator)
+        local_discriminator = copy.deepcopy(curr_global_discriminator)
+
         tasks_to_learn = task_names[args.resume_task+1:]
         print(f"Model loaded from task {args.resume_task}")
         
