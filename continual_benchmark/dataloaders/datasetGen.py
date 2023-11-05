@@ -215,7 +215,7 @@ def data_split(dataset, dataset_name, num_batches=5, num_classes=10, random_spli
     val_dataset_splits = {}
     task_output_space = {}
 
-    val_size = 0.3
+    val_size = 0.0
     random_samples = torch.rand(len(dataset))
     train_set_indices = torch.ones(len(dataset))
     train_set_indices[random_samples < val_size] = 0
