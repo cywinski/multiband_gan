@@ -38,7 +38,7 @@ def run(args):
         num_classes = train_dataset.number_classes
 
     num_batches = args.num_batches
-    train_dataset_splits, val_dataset_splits, task_output_space = data_split(
+    train_dataset_splits, _, task_output_space = data_split(
         dataset=train_dataset,
         dataset_name=args.dataset.lower(),
         num_batches=num_batches,
@@ -149,11 +149,7 @@ def run(args):
 
         local_train_loaders.append(local_train_dataset_loader)
         global_train_loaders.append(global_train_dataset_loader)
-        val_data = (
-            val_dataset_splits[task_name]
-            if args.score_on_val
-            else train_dataset_splits[task_name]
-        )
+        val_data = train_dataset_splits[task_name]
         val_loader = data.DataLoader(
             dataset=val_data,
             batch_size=args.val_batch_size,
@@ -175,7 +171,7 @@ def run(args):
         labels_tasks_str = ""
 
     if not args.skip_validation:
-        stats_file_name = f"seed_{args.seed}_batches_{args.num_batches}_labels_{labels_tasks_str}_val_{args.score_on_val}_random_{args.random_split}_shuffle_{args.random_shuffle}_dirichlet_{args.dirichlet}_limit_{args.limit_data}_reverse_{args.reverse}_class_cond_{args.class_cond}"
+        stats_file_name = f"seed_{args.seed}_batches_{args.num_batches}_labels_{labels_tasks_str}_random_{args.random_split}_shuffle_{args.random_shuffle}_dirichlet_{args.dirichlet}_limit_{args.limit_data}_reverse_{args.reverse}_class_cond_{args.class_cond}"
 
         print("Removing previous stats files: ")
         for f in glob(
@@ -238,7 +234,7 @@ def run(args):
 
         tasks_to_learn = task_names[args.resume_task+1:]
         print(f"Model loaded from task {args.resume_task}")
-        
+
     print(f"Tasks to learn: {tasks_to_learn}")
     for task_id in tasks_to_learn:
         print(
@@ -559,13 +555,6 @@ def get_args(argv):
         "--latent_dim", type=int, default=100, help="Latent dimension of Generator"
     )
     parser.add_argument("--batch_size", type=int, default=64)
-    parser.add_argument(
-        "--score_on_val",
-        action="store_true",
-        required=False,
-        default=False,
-        help="Compute FID on validation dataset instead of training dataset",
-    )
     parser.add_argument("--val_batch_size", type=int, default=250)
     parser.add_argument(
         "--gen_load_pretrained_models",

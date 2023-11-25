@@ -47,7 +47,7 @@ def CelebA(root, skip_normalization=False, train_aug=False, image_size=64, targe
     print(transform)
     dataset = torchvision.datasets.CelebA(root=root, download=True, transform=transform,
                                           target_type=target_type)
-    
+
     save_path = f"{root}/fast_celeba"
     if os.path.exists(save_path):
         fast_celeba = torch.load(save_path)
@@ -73,6 +73,8 @@ def MNIST(dataroot, skip_normalization=False, train_aug=False):
         val_transform = transforms.Compose([
             transforms.ToTensor(),
             normalize,
+            transforms.Lambda(lambda img: torch.cat([img, img, img], dim=0)),
+            transforms.Pad(padding=(2, 2, 2, 2), fill=0, padding_mode='constant')
         ])
         print("Data has been normalized")
 
@@ -81,6 +83,8 @@ def MNIST(dataroot, skip_normalization=False, train_aug=False):
         train_transform = transforms.Compose([
             transforms.ToTensor(),
             normalize,
+            transforms.Lambda(lambda img: torch.cat([img, img, img], dim=0)),
+            transforms.Pad(padding=(2, 2, 2, 2), fill=0, padding_mode='constant')
         ])
 
     train_dataset = torchvision.datasets.MNIST(
@@ -183,7 +187,7 @@ def DoubleMNIST(dataroot, skip_normalization=False, train_aug=False):
     # normalize = transforms.Normalize(mean=(0.1307,), std=(0.3081,))  # for  28x28
     # normalize = transforms.Normalize(mean=(0.1000,), std=(0.2752,))  # for 32x32
     normalize = transforms.Normalize(mean=(0.5,), std=(0.5,))
-    
+
     if skip_normalization:
         val_transform = transforms.Compose([
             transforms.ToTensor(),
@@ -257,16 +261,11 @@ def CIFAR10(dataroot, skip_normalization=False, train_aug=True):
             normalize,
         ])
         print("Data has been normalized")
-        
+
     train_transform = val_transform
     if train_aug:
         train_transform = transforms.Compose([
-            transforms.RandomResizedCrop(32, scale=(0.7, 1.0), ratio=(1.0,1.0)),
-            transforms.ColorJitter(
-            brightness=0.1,
-            contrast=0.1,
-            saturation=0.1,
-            hue=0.1),
+            # transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             normalize,
@@ -432,7 +431,7 @@ def CIFAR100(dataroot, skip_normalization=False, train_aug=False):
     train_transform = val_transform
     if train_aug:
         train_transform = transforms.Compose([
-            transforms.RandomCrop(32, padding=4),
+            # transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             normalize,
