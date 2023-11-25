@@ -29,8 +29,20 @@ def run(args):
         num_classes = train_dataset.number_classes
 
     num_batches = args.num_batches
-    train_dataset_splits, val_dataset_splits, task_output_space = data_split(
+    train_dataset_splits, _, task_output_space = data_split(
         dataset=train_dataset,
+        dataset_name=args.dataset.lower(),
+        num_batches=num_batches,
+        num_classes=num_classes,
+        random_split=args.random_split,
+        random_mini_shuffle=args.random_shuffle,
+        limit_data=args.limit_data,
+        dirichlet_split_alpha=args.dirichlet,
+        reverse=args.reverse,
+        limit_classes=args.limit_classes,
+    )
+    val_dataset_splits, _, _ = data_split(
+        dataset=val_dataset,
         dataset_name=args.dataset.lower(),
         num_batches=num_batches,
         num_classes=num_classes,
@@ -49,7 +61,7 @@ def run(args):
 
     if hasattr(train_dataset.dataset, "classes"):
         tasks_num_classes_dict = {
-            task_id: [train_dataset.dataset.classes[i] for i in class_idxs] # class_idxs[0]?
+            task_id: [train_dataset.dataset.classes[i] for i in class_idxs[0]] if args.dataset == "cifar100" else [train_dataset.dataset.classes[i] for i in class_idxs]# class_idxs[0]?
             for task_id, class_idxs in labels_tasks.items()
         }
     else:
