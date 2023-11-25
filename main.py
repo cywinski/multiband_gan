@@ -29,7 +29,7 @@ def run(args):
         num_classes = train_dataset.number_classes
 
     num_batches = args.num_batches
-    train_dataset_splits, _, task_output_space = data_split(
+    train_dataset_splits, val_dataset_splits, task_output_space = data_split(
         dataset=train_dataset,
         dataset_name=args.dataset.lower(),
         num_batches=num_batches,
@@ -138,7 +138,11 @@ def run(args):
 
         local_train_loaders.append(local_train_dataset_loader)
         global_train_loaders.append(global_train_dataset_loader)
-        val_data = train_dataset_splits[task_name]
+        val_data = (
+            val_dataset_splits[task_name]
+            if args.score_on_val
+            else train_dataset_splits[task_name]
+        )
         val_loader = data.DataLoader(
             dataset=val_data,
             batch_size=args.val_batch_size,
