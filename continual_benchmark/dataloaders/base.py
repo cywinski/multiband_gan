@@ -45,13 +45,13 @@ def CelebA(root, skip_normalization=False, train_aug=False, image_size=64, targe
         print("Loading data")
         print("Data has been normalized")
     print(transform)
-    dataset = torchvision.datasets.CelebA(root=root, download=True, transform=transform,
-                                          target_type=target_type)
 
     save_path = f"{root}/fast_celeba"
     if os.path.exists(save_path):
         fast_celeba = torch.load(save_path)
     else:
+        dataset = torchvision.datasets.CelebA(root=root, download=True, transform=transform,
+                                        target_type=target_type)
         train_loader = DataLoader(dataset, batch_size=len(dataset))
         data = next(iter(train_loader))
         fast_celeba = FastCelebA(data[0], data[1])

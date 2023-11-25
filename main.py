@@ -29,7 +29,7 @@ def run(args):
         num_classes = train_dataset.number_classes
 
     num_batches = args.num_batches
-    train_dataset_splits, _, task_output_space = data_split(
+    train_dataset_splits, val_dataset_splits, task_output_space = data_split(
         dataset=train_dataset,
         dataset_name=args.dataset.lower(),
         num_batches=num_batches,
@@ -41,18 +41,19 @@ def run(args):
         reverse=args.reverse,
         limit_classes=args.limit_classes,
     )
-    val_dataset_splits, _, _ = data_split(
-        dataset=val_dataset,
-        dataset_name=args.dataset.lower(),
-        num_batches=num_batches,
-        num_classes=num_classes,
-        random_split=args.random_split,
-        random_mini_shuffle=args.random_shuffle,
-        limit_data=args.limit_data,
-        dirichlet_split_alpha=args.dirichlet,
-        reverse=args.reverse,
-        limit_classes=args.limit_classes,
-    )
+    if args.dataset.lower() != "celeba":
+        val_dataset_splits, _, _ = data_split(
+            dataset=val_dataset,
+            dataset_name=args.dataset.lower(),
+            num_batches=num_batches,
+            num_classes=num_classes,
+            random_split=args.random_split,
+            random_mini_shuffle=args.random_shuffle,
+            limit_data=args.limit_data,
+            dirichlet_split_alpha=args.dirichlet,
+            reverse=args.reverse,
+            limit_classes=args.limit_classes,
+        )
 
     # Calculate constants
     labels_tasks = {}
