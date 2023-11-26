@@ -140,7 +140,7 @@ def data_split(dataset, dataset_name, num_batches=5, num_classes=10, random_spli
                 }
     elif num_batches == 1:
         batch_split = {
-            0: range(10)
+            0: range(num_classes)
         }
     else:
         if dataset_name in ["omniglot", "doublemnist", "flowers", "cifar100"]:
