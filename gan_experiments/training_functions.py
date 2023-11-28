@@ -417,6 +417,7 @@ def train_global_generator(
     class_cond=False,
     class_table=None,
     biggan_training=False,
+    only_generations=False,
 ):
     global_generator = copy.deepcopy(curr_global_generator)
     global_generator.to(curr_global_generator.device)
@@ -464,23 +465,27 @@ def train_global_generator(
                 class_table=class_table,
                 biggan_training=biggan_training
             )
-            # Real images and optimized noise of current task
-            curr_examples = batch[0]
             curr_labels = batch[1] if class_cond else None
-            if not epoch:
-                curr_noise = gan_utils.optimize_noise(
-                    curr_examples,
-                    curr_local_generator,
-                    num_epochs_noise_optim,
-                    task_id,
-                    lr=optim_noise_lr,
-                    log=not i,  # log only first batch for readability
-                    labels=curr_labels,
-                    biggan_training=biggan_training
-                )
-                curr_noise_all.append(curr_noise.to("cpu"))
+            if not only_generations:
+                # Real images and optimized noise of current task
+                curr_examples = batch[0]
+                if not epoch:
+                    curr_noise = gan_utils.optimize_noise(
+                        curr_examples,
+                        curr_local_generator,
+                        num_epochs_noise_optim,
+                        task_id,
+                        lr=optim_noise_lr,
+                        log=not i,  # log only first batch for readability
+                        labels=curr_labels,
+                        biggan_training=biggan_training
+                    )
+                    curr_noise_all.append(curr_noise.to("cpu"))
+                else:
+                    curr_noise = curr_noise_all[i].to(global_generator.device)
             else:
-                curr_noise = curr_noise_all[i].to(global_generator.device)
+                curr_noise = torch.randn(len(batch[0]), curr_local_generator.latent_dim, device=curr_local_generator.device)
+                curr_examples = curr_local_generator(curr_noise, curr_labels)
 
             if not class_cond:
                 curr_task_ids = torch.zeros([len(curr_examples)]) + task_id
@@ -577,7 +582,7 @@ def train_global_generator(
                                 ).to(global_generator.device),
                             ]
                         )
-                
+
                 if biggan_training:
                     task_ids = global_generator.shared(task_ids.long())
                 generations = global_generator(

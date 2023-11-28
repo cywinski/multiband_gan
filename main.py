@@ -62,7 +62,11 @@ def run(args):
 
     if hasattr(train_dataset.dataset, "classes"):
         tasks_num_classes_dict = {
-            task_id: [train_dataset.dataset.classes[i] for i in class_idxs[0]] if (args.dataset.lower() == "cifar100" and args.num_batches > 1) else [train_dataset.dataset.classes[i] for i in class_idxs]# class_idxs[0]?
+            task_id: [train_dataset.dataset.classes[i] for i in class_idxs[0]]
+            if (args.dataset.lower() == "cifar100" and args.num_batches > 1)
+            else [
+                train_dataset.dataset.classes[i] for i in class_idxs
+            ]  # class_idxs[0]?
             for task_id, class_idxs in labels_tasks.items()
         }
     else:
@@ -249,6 +253,7 @@ def run(args):
                 class_cond=args.class_cond,
                 class_table=class_table,
                 num_classes=num_classes,
+                only_generations=args.only_generations,
             )
         else:
             print("Wrong training procedure")
@@ -469,6 +474,13 @@ def get_args(argv):
         action="store_true",
         help="Allow data augmentation during training",
     )
+    parser.add_argument(
+        "--only_generations",
+        dest="only_generations",
+        default=False,
+        action="store_true",
+        help="Train global generator only on generations",
+    )
     parser.add_argument("--num_batches", type=int, default=5)
     parser.add_argument(
         "--rand_split",
@@ -632,7 +644,7 @@ def get_args(argv):
         dest="new_d_every_task",
         default=False,
         action="store_true",
-        help="Train new discriminator every task, if False -> model from previous task will be used",
+        help="Train new discriminator every task, if Fatlse -> model from previous task will be used",
     )
     parser.add_argument(
         "--global_warmup",

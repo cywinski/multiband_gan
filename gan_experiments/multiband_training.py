@@ -33,6 +33,7 @@ def train_multiband_gan(
     class_table=None,
     num_classes=None,
     local_GD=None,
+    only_generations=False,
 ):
     print(f"Started training local GAN model on task nr {task_id}")
     tmp_table = training_functions.train_local(
@@ -78,7 +79,8 @@ def train_multiband_gan(
         global_scheduler_rate=global_scheduler_rate,
         class_cond=class_cond,
         class_table=class_table,
-        biggan_training=(local_GD is not None)
+        biggan_training=(local_GD is not None),
+        only_generations=only_generations,
     )
 
         print(f"Done training global GAN model on task nr {task_id}")
