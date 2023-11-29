@@ -421,7 +421,7 @@ def train_global_generator(
 ):
     global_generator = copy.deepcopy(curr_global_generator)
     global_generator.to(curr_global_generator.device)
-
+    curr_local_generator.eval()
     curr_global_generator.eval()
     curr_global_generator.translator.eval()
 
@@ -463,9 +463,13 @@ def train_global_generator(
                 n_prev_examples=n_prev_examples,
                 curr_global_generator=curr_global_generator,
                 class_table=class_table,
-                biggan_training=biggan_training
+                biggan_training=biggan_training,
             )
             curr_labels = batch[1] if class_cond else None
+            if not class_cond:
+                curr_task_ids = torch.zeros([len(batch[0])]) + task_id
+            else:
+                curr_task_ids = curr_labels
             if not only_generations:
                 # Real images and optimized noise of current task
                 curr_examples = batch[0]
@@ -478,19 +482,18 @@ def train_global_generator(
                         lr=optim_noise_lr,
                         log=not i,  # log only first batch for readability
                         labels=curr_labels,
-                        biggan_training=biggan_training
+                        biggan_training=biggan_training,
                     )
                     curr_noise_all.append(curr_noise.to("cpu"))
                 else:
                     curr_noise = curr_noise_all[i].to(global_generator.device)
             else:
-                curr_noise = torch.randn(len(batch[0]), curr_local_generator.latent_dim, device=curr_local_generator.device)
-                curr_examples = curr_local_generator(curr_noise, curr_labels)
-
-            if not class_cond:
-                curr_task_ids = torch.zeros([len(curr_examples)]) + task_id
-            else:
-                curr_task_ids = curr_labels
+                curr_noise = torch.randn(
+                    len(batch[0]),
+                    curr_local_generator.latent_dim,
+                    device=curr_local_generator.device,
+                )
+                curr_examples = curr_local_generator(curr_noise, curr_task_ids)
 
             examples_concat = torch.cat(
                 [prev_examples, curr_examples.to(global_generator.device)]
