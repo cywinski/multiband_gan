@@ -23,25 +23,29 @@ class FastCelebA(Dataset):
         return self.dataset[index], self.attr[index]
 
 
-def CelebA(root, skip_normalization=False, train_aug=False, image_size=64, target_type='attr'):
+def CelebA(
+    root, skip_normalization=False, train_aug=False, image_size=64, target_type="attr"
+):
     if skip_normalization:
-        transform = transforms.Compose([
-
-            transforms.Resize(image_size),
-            transforms.RandomHorizontalFlip(),
-            transforms.CenterCrop(image_size),
-            transforms.ToTensor(),
-        ])
+        transform = transforms.Compose(
+            [
+                transforms.Resize(image_size),
+                transforms.RandomHorizontalFlip(),
+                transforms.CenterCrop(image_size),
+                transforms.ToTensor(),
+            ]
+        )
         print("Loading data")
     else:
-        transform = transforms.Compose([
-
-            transforms.Resize(image_size),
-            transforms.RandomHorizontalFlip(),
-            transforms.CenterCrop(image_size),
-            transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-        ])
+        transform = transforms.Compose(
+            [
+                transforms.Resize(image_size),
+                transforms.RandomHorizontalFlip(),
+                transforms.CenterCrop(image_size),
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+            ]
+        )
         print("Loading data")
         print("Data has been normalized")
     print(transform)
@@ -50,8 +54,9 @@ def CelebA(root, skip_normalization=False, train_aug=False, image_size=64, targe
     if os.path.exists(save_path):
         fast_celeba = torch.load(save_path)
     else:
-        dataset = torchvision.datasets.CelebA(root=root, download=True, transform=transform,
-                                        target_type=target_type)
+        dataset = torchvision.datasets.CelebA(
+            root=root, download=True, transform=transform, target_type=target_type
+        )
         train_loader = DataLoader(dataset, batch_size=len(dataset))
         data = next(iter(train_loader))
         fast_celeba = FastCelebA(data[0], data[1])
@@ -66,39 +71,81 @@ def MNIST(dataroot, skip_normalization=False, train_aug=False):
     # normalize = transforms.Normalize(mean=(0.1000,), std=(0.2752,))  # for 32x32
 
     if skip_normalization:
-        val_transform = transforms.Compose([
-            transforms.ToTensor(),
-        ])
+        val_transform = transforms.Compose(
+            [
+                transforms.ToTensor(),
+            ]
+        )
     else:
-        val_transform = transforms.Compose([
-            transforms.ToTensor(),
-            normalize,
-            transforms.Lambda(lambda img: torch.cat([img, img, img], dim=0)),
-            transforms.Pad(padding=(2, 2, 2, 2), fill=0, padding_mode='constant')
-        ])
+        val_transform = transforms.Compose(
+            [
+                transforms.ToTensor(),
+                normalize,
+            ]
+        )
         print("Data has been normalized")
 
     train_transform = val_transform
     if train_aug:
-        train_transform = transforms.Compose([
-            transforms.ToTensor(),
-            normalize,
-            transforms.Lambda(lambda img: torch.cat([img, img, img], dim=0)),
-            transforms.Pad(padding=(2, 2, 2, 2), fill=0, padding_mode='constant')
-        ])
+        train_transform = transforms.Compose(
+            [
+                transforms.ToTensor(),
+                normalize,
+            ]
+        )
 
     train_dataset = torchvision.datasets.MNIST(
-        root=dataroot,
-        train=True,
-        download=True,
-        transform=train_transform
+        root=dataroot, train=True, download=True, transform=train_transform
     )
     train_dataset = CacheClassLabel(train_dataset)
 
     val_dataset = torchvision.datasets.MNIST(
-        dataroot,
-        train=False,
-        transform=val_transform
+        dataroot, train=False, transform=val_transform
+    )
+    val_dataset = CacheClassLabel(val_dataset)
+
+    return train_dataset, val_dataset
+
+
+def MNISTBigGAN(dataroot, skip_normalization=False, train_aug=False):
+    normalize = transforms.Normalize(mean=(0.5,), std=(0.5,))  # for 28x28
+    # normalize = transforms.Normalize(mean=(0.1000,), std=(0.2752,))  # for 32x32
+
+    if skip_normalization:
+        val_transform = transforms.Compose(
+            [
+                transforms.ToTensor(),
+            ]
+        )
+    else:
+        val_transform = transforms.Compose(
+            [
+                transforms.ToTensor(),
+                normalize,
+                transforms.Lambda(lambda img: torch.cat([img, img, img], dim=0)),
+                transforms.Pad(padding=(2, 2, 2, 2), fill=0, padding_mode="constant"),
+            ]
+        )
+        print("Data has been normalized")
+
+    train_transform = val_transform
+    if train_aug:
+        train_transform = transforms.Compose(
+            [
+                transforms.ToTensor(),
+                normalize,
+                transforms.Lambda(lambda img: torch.cat([img, img, img], dim=0)),
+                transforms.Pad(padding=(2, 2, 2, 2), fill=0, padding_mode="constant"),
+            ]
+        )
+
+    train_dataset = torchvision.datasets.MNIST(
+        root=dataroot, train=True, download=True, transform=train_transform
+    )
+    train_dataset = CacheClassLabel(train_dataset)
+
+    val_dataset = torchvision.datasets.MNIST(
+        dataroot, train=False, transform=val_transform
     )
     val_dataset = CacheClassLabel(val_dataset)
 
@@ -111,24 +158,22 @@ def Omniglot(dataroot, skip_normalization=False, train_aug=False):
     normalize = transforms.Normalize(mean=(0.5,), std=(0.5,))
 
     if skip_normalization:
-        val_transform = transforms.Compose([
-            transforms.Resize(28),
-            transforms.ToTensor(),
-        ])
+        val_transform = transforms.Compose(
+            [
+                transforms.Resize(28),
+                transforms.ToTensor(),
+            ]
+        )
     else:
-        val_transform = transforms.Compose([
-            transforms.Resize(28),
-            transforms.ToTensor(),
-            normalize
-        ])
+        val_transform = transforms.Compose(
+            [transforms.Resize(28), transforms.ToTensor(), normalize]
+        )
         print("Data has been normalized")
 
     train_transform = val_transform
     print(train_transform)
     train_dataset = torchvision.datasets.Omniglot(
-        root=dataroot,
-        download=True,
-        transform=train_transform
+        root=dataroot, download=True, transform=train_transform
     )
     train_dataset = CacheClassLabel(train_dataset)
 
@@ -147,36 +192,37 @@ def FashionMNIST(dataroot, skip_normalization=False, train_aug=False):
     # normalize = transforms.Normalize(mean=(0.1000,), std=(0.2752,))  # for 32x32
 
     if skip_normalization:
-        val_transform = transforms.Compose([
-            transforms.ToTensor(),
-        ])
+        val_transform = transforms.Compose(
+            [
+                transforms.ToTensor(),
+            ]
+        )
     else:
-        val_transform = transforms.Compose([
-            transforms.ToTensor(),
-            normalize,
-        ])
+        val_transform = transforms.Compose(
+            [
+                transforms.ToTensor(),
+                normalize,
+            ]
+        )
         print("Data has been normalized")
 
     train_transform = val_transform
     if train_aug:
-        train_transform = transforms.Compose([
-            transforms.RandomCrop(32, padding=4),
-            transforms.ToTensor(),
-            normalize,
-        ])
+        train_transform = transforms.Compose(
+            [
+                transforms.RandomCrop(32, padding=4),
+                transforms.ToTensor(),
+                normalize,
+            ]
+        )
 
     train_dataset = torchvision.datasets.FashionMNIST(
-        root=dataroot,
-        train=True,
-        download=True,
-        transform=train_transform
+        root=dataroot, train=True, download=True, transform=train_transform
     )
     train_dataset = CacheClassLabel(train_dataset)
 
     val_dataset = torchvision.datasets.FashionMNIST(
-        dataroot,
-        train=False,
-        transform=val_transform
+        dataroot, train=False, transform=val_transform
     )
     val_dataset = CacheClassLabel(val_dataset)
 
@@ -189,51 +235,47 @@ def DoubleMNIST(dataroot, skip_normalization=False, train_aug=False):
     normalize = transforms.Normalize(mean=(0.5,), std=(0.5,))
 
     if skip_normalization:
-        val_transform = transforms.Compose([
-            transforms.ToTensor(),
-        ])
+        val_transform = transforms.Compose(
+            [
+                transforms.ToTensor(),
+            ]
+        )
     else:
-        val_transform = transforms.Compose([
-            transforms.ToTensor(),
-            normalize,
-        ])
+        val_transform = transforms.Compose(
+            [
+                transforms.ToTensor(),
+                normalize,
+            ]
+        )
         print("Data has been normalized")
 
     train_transform = val_transform
     if train_aug:
-        train_transform = transforms.Compose([
-            transforms.RandomCrop(32, padding=4),
-            transforms.ToTensor(),
-            normalize,
-        ])
+        train_transform = transforms.Compose(
+            [
+                transforms.RandomCrop(32, padding=4),
+                transforms.ToTensor(),
+                normalize,
+            ]
+        )
 
     train_dataset_fashion = torchvision.datasets.FashionMNIST(
-        root=dataroot,
-        train=True,
-        download=True,
-        transform=train_transform
+        root=dataroot, train=True, download=True, transform=train_transform
     )
     # train_dataset_fashion = CacheClassLabel(train_dataset_fashion)
 
     train_dataset_mnist = torchvision.datasets.MNIST(
-        root=dataroot,
-        train=True,
-        download=True,
-        transform=train_transform
+        root=dataroot, train=True, download=True, transform=train_transform
     )
     # train_dataset_mnist = CacheClassLabel(train_dataset_mnist)
 
     val_dataset_fashion = torchvision.datasets.FashionMNIST(
-        dataroot,
-        train=False,
-        transform=val_transform
+        dataroot, train=False, transform=val_transform
     )
     # val_dataset_fashion = CacheClassLabel(val_dataset)
 
     val_dataset_mnist = torchvision.datasets.MNIST(
-        dataroot,
-        train=False,
-        transform=val_transform
+        dataroot, train=False, transform=val_transform
     )
     # val_dataset_mnist = CacheClassLabel(val_dataset)
     train_dataset_mnist.targets = train_dataset_mnist.targets + 10
@@ -252,39 +294,39 @@ def CIFAR10(dataroot, skip_normalization=False, train_aug=True):
     normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 
     if skip_normalization:
-        val_transform = transforms.Compose([
-            transforms.ToTensor(),
-        ])
+        val_transform = transforms.Compose(
+            [
+                transforms.ToTensor(),
+            ]
+        )
     else:
-        val_transform = transforms.Compose([
-            transforms.ToTensor(),
-            normalize,
-        ])
+        val_transform = transforms.Compose(
+            [
+                transforms.ToTensor(),
+                normalize,
+            ]
+        )
         print("Data has been normalized")
 
     train_transform = val_transform
     if train_aug:
-        train_transform = transforms.Compose([
-            # transforms.RandomCrop(32, padding=4),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            normalize,
-        ])
+        train_transform = transforms.Compose(
+            [
+                # transforms.RandomCrop(32, padding=4),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                normalize,
+            ]
+        )
     print(train_transform)
 
     train_dataset = torchvision.datasets.CIFAR10(
-        root=dataroot,
-        train=True,
-        download=True,
-        transform=train_transform
+        root=dataroot, train=True, download=True, transform=train_transform
     )
     train_dataset = CacheClassLabel(train_dataset)
 
     val_dataset = torchvision.datasets.CIFAR10(
-        root=dataroot,
-        train=False,
-        download=True,
-        transform=val_transform
+        root=dataroot, train=False, download=True, transform=val_transform
     )
     val_dataset = CacheClassLabel(val_dataset)
 
@@ -292,21 +334,28 @@ def CIFAR10(dataroot, skip_normalization=False, train_aug=True):
 
 
 def CERN(dataroot, skip_normalization=False, train_aug=True, test_split=0.25):
-    data_cond = np.load(f'{dataroot}/cern/data_nonrandom_particles.npz')["arr_0"]
-    data_cond = pd.DataFrame(data_cond, columns=['Energy', 'Vx', 'Vy', 'Vz', 'Px', 'Py', 'Pz', 'mass', 'charge'])
-    data = np.load(f'{dataroot}/cern/data_nonrandom_responses.npz')["arr_0"]
+    data_cond = np.load(f"{dataroot}/cern/data_nonrandom_particles.npz")["arr_0"]
+    data_cond = pd.DataFrame(
+        data_cond,
+        columns=["Energy", "Vx", "Vy", "Vz", "Px", "Py", "Pz", "mass", "charge"],
+    )
+    data = np.load(f"{dataroot}/cern/data_nonrandom_responses.npz")["arr_0"]
     n_classes = 10
     bin_labels = list(range(n_classes))
-    data_cond["label"] = pd.qcut(data_cond['Energy'], q=n_classes, labels=bin_labels)
+    data_cond["label"] = pd.qcut(data_cond["Energy"], q=n_classes, labels=bin_labels)
     data = np.log(data + 1)
     data = np.expand_dims(data, 1)
     train_cond = data_cond.sample(int(len(data_cond) * (1 - test_split)))
     test_cond = data_cond.drop(train_cond.index)
 
-    train_dataset = TensorDataset(torch.Tensor(data[train_cond.index]).float(),
-                                  torch.Tensor(train_cond["label"].values.astype(int)).long())
-    test_dataset = TensorDataset(torch.Tensor(data[test_cond.index]).float(),
-                                 torch.Tensor(test_cond["label"].values.astype(int)).long())
+    train_dataset = TensorDataset(
+        torch.Tensor(data[train_cond.index]).float(),
+        torch.Tensor(train_cond["label"].values.astype(int)).long(),
+    )
+    test_dataset = TensorDataset(
+        torch.Tensor(data[test_cond.index]).float(),
+        torch.Tensor(test_cond["label"].values.astype(int)).long(),
+    )
 
     train_dataset.root = dataroot
     train_dataset = CacheClassLabel(train_dataset)
@@ -316,48 +365,60 @@ def CERN(dataroot, skip_normalization=False, train_aug=True, test_split=0.25):
 
 
 def Flowers(dataroot, skip_normalization=False, train_aug=True):
-    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    normalize = transforms.Normalize(
+        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+    )
 
     size = 64
     if skip_normalization:
-        val_transform = transforms.Compose([
-            transforms.Resize(size),
-            transforms.CenterCrop(size),
-            transforms.ToTensor(),
-        ])
+        val_transform = transforms.Compose(
+            [
+                transforms.Resize(size),
+                transforms.CenterCrop(size),
+                transforms.ToTensor(),
+            ]
+        )
     else:
-        val_transform = transforms.Compose([
-            transforms.Resize(size),
-            transforms.CenterCrop(size),
-            transforms.ToTensor(),
-            normalize,
-        ])
+        val_transform = transforms.Compose(
+            [
+                transforms.Resize(size),
+                transforms.CenterCrop(size),
+                transforms.ToTensor(),
+                normalize,
+            ]
+        )
 
     train_transform = val_transform
     if train_aug:
         if skip_normalization:
-            train_transform = transforms.Compose([
-                transforms.RandomRotation(30),
-                transforms.Resize(100),
-                transforms.RandomCrop(size),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-            ])
+            train_transform = transforms.Compose(
+                [
+                    transforms.RandomRotation(30),
+                    transforms.Resize(100),
+                    transforms.RandomCrop(size),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.ToTensor(),
+                ]
+            )
         else:
-            train_transform = transforms.Compose([
-                transforms.RandomRotation(30),
-                transforms.Resize(100),
-                transforms.RandomCrop(size),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                normalize,
-            ])
+            train_transform = transforms.Compose(
+                [
+                    transforms.RandomRotation(30),
+                    transforms.Resize(100),
+                    transforms.RandomCrop(size),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.ToTensor(),
+                    normalize,
+                ]
+            )
 
     train_dir = dataroot + "/flower_data/train/"
     val_dir = dataroot + "/flower_data/valid/"
     # train_dir = dataroot + "/flowers_selected/"
     # val_dir = dataroot + "/flowers_selected/"
-    train_dataset = torchvision.datasets.ImageFolder(train_dir, transform=train_transform)
+    train_dataset = torchvision.datasets.ImageFolder(
+        train_dir, transform=train_transform
+    )
     # If doesn't work please download data from https://www.kaggle.com/c/oxford-102-flower-pytorch
 
     train_dataset = CacheClassLabel(train_dataset)
@@ -371,42 +432,50 @@ def Flowers(dataroot, skip_normalization=False, train_aug=True):
 
 def LSUN(dataroot, skip_normalization=False, train_aug=False):
     raise NotImplementedError()  # Dataset is too big
-    normalize = transforms.Normalize(mean=[0.491, 0.482, 0.447], std=[0.247, 0.243, 0.262])
+    normalize = transforms.Normalize(
+        mean=[0.491, 0.482, 0.447], std=[0.247, 0.243, 0.262]
+    )
 
     if skip_normalization:
-        val_transform = transforms.Compose([
-            transforms.ToTensor(),
-        ])
+        val_transform = transforms.Compose(
+            [
+                transforms.ToTensor(),
+            ]
+        )
     else:
-        val_transform = transforms.Compose([
-            transforms.ToTensor(),
-            normalize,
-        ])
+        val_transform = transforms.Compose(
+            [
+                transforms.ToTensor(),
+                normalize,
+            ]
+        )
 
     train_transform = val_transform
     if train_aug:
-        train_transform = transforms.Compose([
-            transforms.Resize(64),
-            transforms.CenterCrop(64),
-            # transforms.RandomCrop(32, padding=4),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            normalize,
-        ])
+        train_transform = transforms.Compose(
+            [
+                transforms.Resize(64),
+                transforms.CenterCrop(64),
+                # transforms.RandomCrop(32, padding=4),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                normalize,
+            ]
+        )
 
     train_dataset = torchvision.datasets.LSUN(
         root=dataroot,
-        classes='train',
+        classes="train",
         # download=True,
-        transform=train_transform
+        transform=train_transform,
     )
     train_dataset = CacheClassLabel(train_dataset)
 
     val_dataset = torchvision.datasets.LSUN(
         root=dataroot,
-        classes='test',
+        classes="test",
         # download=True,
-        transform=val_transform
+        transform=val_transform,
     )
     val_dataset = CacheClassLabel(val_dataset)
 
@@ -418,38 +487,38 @@ def CIFAR100(dataroot, skip_normalization=False, train_aug=False):
     normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 
     if skip_normalization:
-        val_transform = transforms.Compose([
-            transforms.ToTensor(),
-        ])
+        val_transform = transforms.Compose(
+            [
+                transforms.ToTensor(),
+            ]
+        )
     else:
-        val_transform = transforms.Compose([
-            transforms.ToTensor(),
-            normalize,
-        ])
+        val_transform = transforms.Compose(
+            [
+                transforms.ToTensor(),
+                normalize,
+            ]
+        )
         print("Data has been normalized")
 
     train_transform = val_transform
     if train_aug:
-        train_transform = transforms.Compose([
-            # transforms.RandomCrop(32, padding=4),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            normalize,
-        ])
+        train_transform = transforms.Compose(
+            [
+                # transforms.RandomCrop(32, padding=4),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                normalize,
+            ]
+        )
 
     train_dataset = torchvision.datasets.CIFAR100(
-        root=dataroot,
-        train=True,
-        download=True,
-        transform=train_transform
+        root=dataroot, train=True, download=True, transform=train_transform
     )
     train_dataset = CacheClassLabel(train_dataset)
 
     val_dataset = torchvision.datasets.CIFAR100(
-        root=dataroot,
-        train=False,
-        download=True,
-        transform=val_transform
+        root=dataroot, train=False, download=True, transform=val_transform
     )
     val_dataset = CacheClassLabel(val_dataset)
 
@@ -467,7 +536,7 @@ def ToyDataset(dataroot, skip_normalization=False, train_aug=False):
         for i in range(square_size):
             for j in range(square_size):
                 if (i == j) | (square_size - i - 1 == j):
-                    img[x:x + square_size, y:y + square_size] = 1
+                    img[x : x + square_size, y : y + square_size] = 1
 
         return img, x + square_size // 2, y + square_size // 2
 
@@ -481,7 +550,13 @@ def ToyDataset(dataroot, skip_normalization=False, train_aug=False):
             x_list.append(x)
             y_list.append(y)
     examples = torch.tensor(np.array(examples), dtype=torch.float)
-    dataset = TensorDataset(examples.repeat([duplicates, 1, 1]),
-                            torch.tensor([x_list, y_list], dtype=torch.float32).view(-1, 2).repeat([duplicates, 1]))
-    test_dataset = TensorDataset(examples, torch.tensor([x_list, y_list], dtype=torch.float32).view(-1, 2))
+    dataset = TensorDataset(
+        examples.repeat([duplicates, 1, 1]),
+        torch.tensor([x_list, y_list], dtype=torch.float32)
+        .view(-1, 2)
+        .repeat([duplicates, 1]),
+    )
+    test_dataset = TensorDataset(
+        examples, torch.tensor([x_list, y_list], dtype=torch.float32).view(-1, 2)
+    )
     return dataset, test_dataset

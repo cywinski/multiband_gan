@@ -28,7 +28,7 @@ from utils import count_parameters
 
 
 def run(args):
-    train_dataset, val_dataset = dataloaders.base.__dict__[args.dataset](
+    train_dataset, val_dataset = dataloaders.base.__dict__[args.dataset+"BigGAN"](
         args.dataroot, args.skip_normalization, args.train_aug
     )
 
