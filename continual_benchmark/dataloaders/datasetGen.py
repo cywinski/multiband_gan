@@ -117,7 +117,7 @@ def data_split(
         num_classes = limit_classes
     if dataset_name.lower() == "celeba":
         attr = dataset.attr
-        if not dirichlet_split:
+        if dirichlet_split is None:
             if num_classes == 10:
                 class_split = {
                     0: [8, 20],  # Black hair
