@@ -29,7 +29,14 @@ def run(args):
         num_classes = train_dataset.number_classes
 
     num_batches = args.num_batches
-    train_dataset_splits, val_dataset_splits, task_output_space = data_split(
+    if args.dirichlet is not None:
+        p = torch.ones(num_batches) / num_batches
+        p = torch.distributions.Dirichlet(args.dirichlet * p).sample([num_classes])
+    (
+        train_dataset_splits,
+        val_dataset_splits,
+        task_output_space,
+    ) = data_split(
         dataset=train_dataset,
         dataset_name=args.dataset.lower(),
         num_batches=num_batches,
@@ -37,9 +44,10 @@ def run(args):
         random_split=args.random_split,
         random_mini_shuffle=args.random_shuffle,
         limit_data=args.limit_data,
-        dirichlet_split_alpha=args.dirichlet,
+        dirichlet_split=(p if args.dirichlet is not None else None),
         reverse=args.reverse,
         limit_classes=args.limit_classes,
+        generator=torch_g,
     )
     if args.dataset.lower() != "celeba":
         val_dataset_splits, _, _ = data_split(
@@ -50,9 +58,10 @@ def run(args):
             random_split=args.random_split,
             random_mini_shuffle=args.random_shuffle,
             limit_data=args.limit_data,
-            dirichlet_split_alpha=args.dirichlet,
+            dirichlet_split=(p if args.dirichlet is not None else None),
             reverse=args.reverse,
             limit_classes=args.limit_classes,
+            generator=torch_g,
         )
 
     # Calculate constants
@@ -144,6 +153,7 @@ def run(args):
             batch_size=args.batch_size,
             shuffle=False,
             drop_last=False,
+            generator=torch_g,
         )
 
         local_train_dataset_loader = data.DataLoader(
@@ -151,6 +161,7 @@ def run(args):
             batch_size=args.batch_size,
             shuffle=True,
             drop_last=False,
+            generator=torch_g,
         )
 
         local_train_loaders.append(local_train_dataset_loader)
@@ -165,6 +176,7 @@ def run(args):
             batch_size=args.val_batch_size,
             shuffle=False,
             num_workers=args.workers,
+            generator=torch_g,
         )
 
         val_loaders.append(val_loader)
@@ -667,6 +679,7 @@ def get_args(argv):
 
 if __name__ == "__main__":
     args = get_args(sys.argv[1:])
+    torch_g = torch.Generator()
 
     wandb.init(
         project=f"{args.wandb_project}_{args.dataset}",
@@ -685,6 +698,7 @@ if __name__ == "__main__":
         torch.cuda.manual_seed(args.seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
+        torch_g.manual_seed(args.seed)
     else:
         print(
             "WARNING: Not using manual seed - your experiments will not be reproducible"
