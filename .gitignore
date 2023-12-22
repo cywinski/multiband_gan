@@ -1,3 +1,4 @@
+results*
 # additional venv for app
 app/app_venv
 app/flagged
